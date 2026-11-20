@@ -1,0 +1,363 @@
+{
+  "name": "Mineração low ticket + roteiros e anúncios (Apify + Claude)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Mineração + criativos\n\n1. Variáveis de ambiente: APIFY_TOKEN e ANTHROPIC_API_KEY (chave da API em console.anthropic.com).\n   Se o seu n8n bloqueia $env nos nós, crie credenciais 'Header Auth' e troque nos nós HTTP.\n2. Edite 'searchQueries' e 'country' no nó 'Minerar anúncios' e o nicho no nó 'Montar pedido'.\n3. Conecte sua conta Google e cole o ID da planilha nos dois nós de planilha (abas 'Ofertas' e 'Criativos').\n\nAviso: a Biblioteca de Anúncios não mostra faturamento; o ranking usa só sinais indiretos. Revise todo texto gerado antes de publicar e confira as políticas de anúncios da Meta.",
+        "height": 260,
+        "width": 420
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Leia primeiro",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        -140
+      ],
+      "height": 330,
+      "width": 470
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Rodar manualmente",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Toda segunda às 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/automation-lab~facebook-ads-library/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $env.APIFY_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"searchQueries\": [\"debt payoff planner\", \"budget planner template\", \"debt snowball workbook\", \"get out of debt guide\", \"budgeting binder printable\"],\n  \"country\": \"US\",\n  \"activeStatus\": \"active\",\n  \"sortBy\": \"impressions\",\n  \"maxAds\": 40,\n  \"searchType\": \"keyword_unordered\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Minerar anúncios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        290
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agrupa os anúncios por página e calcula um placar de sinais de escala.\n// Ajuste os limites abaixo se quiser.\nconst EXCLUDE = /(law|attorney|tax relief|insurance|bank|sofi|financial group|timeshare|roofing)/i;\nconst today = new Date();\nconst pages = {};\n\nfor (const it of $input.all()) {\n  const a = it.json;\n  if (!a.pageId) continue;\n  if (EXCLUDE.test(a.pageName || '')) continue;\n  if (!pages[a.pageId]) {\n    pages[a.pageId] = {\n      pageId: a.pageId,\n      pageName: a.pageName || '',\n      ads: 0,\n      maxDays: 0,\n      maxVariants: 1,\n      prices: [],\n      formats: new Set(),\n      sampleTitle: a.title || '',\n      sampleLink: a.linkUrl || '',\n      adUrl: a.adLibraryUrl || ''\n    };\n  }\n  const p = pages[a.pageId];\n  p.ads += 1;\n  if (a.startDate) {\n    const d = Math.floor((today - new Date(a.startDate)) / 86400000);\n    if (d > p.maxDays) p.maxDays = d;\n  }\n  p.maxVariants = Math.max(p.maxVariants, Number(a.collationCount) || 1);\n  const text = `${a.title || ''} ${a.bodyText || ''}`;\n  for (const m of text.matchAll(/\\$\\s?(\\d{1,3}(?:\\.\\d{2})?)/g)) {\n    const v = parseFloat(m[1]);\n    if (v >= 1 && v <= 47) p.prices.push(v);\n  }\n  if (a.displayFormat) p.formats.add(a.displayFormat);\n}\n\nconst rows = Object.values(pages).map(p => {\n  let score = 0;\n  if (p.ads >= 3) score += 2;\n  if (p.ads >= 10) score += 1;\n  if (p.maxDays >= 30) score += 2;\n  if (p.maxDays >= 60) score += 1;\n  if (p.maxVariants >= 3) score += 1;\n  if (p.prices.length) score += 1;\n  if (p.formats.size >= 2) score += 1;\n  return {\n    json: {\n      score,\n      pageName: p.pageName,\n      activeAds: p.ads,\n      daysRunning: p.maxDays,\n      maxVariants: p.maxVariants,\n      lowestPriceUsd: p.prices.length ? Math.min(...p.prices) : '',\n      formats: [...p.formats].join(', '),\n      sampleTitle: p.sampleTitle,\n      landingPage: p.sampleLink,\n      adLibraryUrl: p.adUrl,\n      minedAt: today.toISOString().slice(0, 10)\n    }\n  };\n});\n\nrows.sort((x, y) => y.json.score - x.json.score || y.json.activeAds - x.json.activeAds);\nreturn rows.slice(0, 15);"
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Ranquear por sinais de escala",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        290
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "COLE_AQUI_O_ID_DA_PLANILHA"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Ofertas"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Salvar na planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        780,
+        290
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fica só com a oferta mais bem ranqueada.\nconst items = $input.all();\nreturn items.length ? [items[0]] : [];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Pegar a melhor oferta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.landingPage }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Ler página da oferta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        500
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o pedido para a API do Claude.\nconst NICHE = 'personal finance / debt (US market)';\nconst offer = $('Pegar a melhor oferta').first().json;\nconst raw = $input.first().json || {};\n\nlet pageText = '';\nif (typeof raw.data === 'string') {\n  pageText = raw.data\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 6000);\n}\n\nconst prompt = [\n  'You are a direct-response copywriter and market analyst.',\n  'Below is data about an ad running on Meta in the US, plus text from its landing page when available.',\n  'Niche: ' + NICHE + '.',\n  '',\n  'OFFER DATA (JSON):',\n  JSON.stringify(offer),\n  '',\n  'LANDING PAGE TEXT (may be empty):',\n  pageText || '(not available)',\n  '',\n  'Tasks:',\n  '1. offer_analysis: promise, audience, hook_pattern, offer_structure. State only what the data supports; write \"unknown\" otherwise.',\n  '2. product_angle: ONE original product angle for the same niche that is clearly different from this offer (different audience or mechanism). Do not copy its name, wording, claims or visuals.',\n  '3. video_scripts: 3 scripts for 20-30 second vertical videos. Each has title, hook (first 3 seconds), script (voiceover and on-screen text) and cta.',\n  '4. ad_texts: 3 variations with primary_text, headline (max 40 characters) and description (max 30 characters).',\n  '5. compliance_notes: risks for Meta ads in this niche.',\n  '',\n  'Rules: write the copy in English. No income or outcome guarantees. Do not address the viewer\\'s personal financial situation or attributes (no \"Are you in debt?\"). No fake testimonials, statistics or social proof. Include a short \"educational, not financial advice\" line in at least one ad text.',\n  '',\n  'Return ONLY valid JSON with these keys: offer_analysis {promise, audience, hook_pattern, offer_structure}, product_angle, video_scripts [{title, hook, script, cta}], ad_texts [{primary_text, headline, description}], compliance_notes [strings]. No markdown fences.'\n].join('\\n');\n\nreturn [{\n  json: {\n    offer,\n    requestBody: {\n      model: 'claude-sonnet-5-5',\n      max_tokens: 3500,\n      messages: [{ role: 'user', content: prompt }]\n    }\n  }\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Montar pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Gerar roteiros e textos (Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transforma a resposta em linhas para a planilha.\nconst meta = $('Montar pedido').first().json.offer;\nconst resp = $input.first().json;\nlet text = (resp.content || []).map(c => c.text || '').join('');\ntext = text.replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '').trim();\n\nconst base = { minedAt: meta.minedAt, offer: meta.pageName };\nlet data;\ntry {\n  data = JSON.parse(text);\n} catch (e) {\n  return [{ json: { ...base, type: 'erro', title: 'A resposta não veio em JSON válido', body: (text || JSON.stringify(resp)).slice(0, 2000), extra: '' } }];\n}\n\nconst a = data.offer_analysis || {};\nconst rows = [];\nrows.push({ json: { ...base, type: 'analise', title: 'Promessa, público e gancho',\n  body: [a.promise, a.audience, a.hook_pattern, a.offer_structure].filter(Boolean).join(' | '),\n  extra: 'Ângulo original: ' + (data.product_angle || '') } });\n(data.video_scripts || []).forEach(v => rows.push({ json: { ...base, type: 'video', title: v.title || '',\n  body: 'GANCHO: ' + (v.hook || '') + '\\n' + (v.script || ''), extra: v.cta || '' } }));\n(data.ad_texts || []).forEach(t => rows.push({ json: { ...base, type: 'anuncio', title: t.headline || '',\n  body: t.primary_text || '', extra: t.description || '' } }));\nrows.push({ json: { ...base, type: 'conformidade', title: 'Riscos na Meta',\n  body: (data.compliance_notes || []).join(' | '), extra: '' } });\nreturn rows;"
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Extrair resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "COLE_AQUI_O_ID_DA_PLANILHA"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Criativos"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "Salvar criativos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Rodar manualmente": {
+      "main": [
+        [
+          {
+            "node": "Minerar anúncios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Toda segunda às 8h": {
+      "main": [
+        [
+          {
+            "node": "Minerar anúncios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Minerar anúncios": {
+      "main": [
+        [
+          {
+            "node": "Ranquear por sinais de escala",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ranquear por sinais de escala": {
+      "main": [
+        [
+          {
+            "node": "Salvar na planilha",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pegar a melhor oferta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pegar a melhor oferta": {
+      "main": [
+        [
+          {
+            "node": "Ler página da oferta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler página da oferta": {
+      "main": [
+        [
+          {
+            "node": "Montar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar pedido": {
+      "main": [
+        [
+          {
+            "node": "Gerar roteiros e textos (Claude)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar roteiros e textos (Claude)": {
+      "main": [
+        [
+          {
+            "node": "Extrair resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair resultado": {
+      "main": [
+        [
+          {
+            "node": "Salvar criativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
