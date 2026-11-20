@@ -8,7 +8,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 1 Diagnóstico e arquitetura | 🟡 | Sem acesso ao GitHub nesta sessão; arquitetura documentada neste arquivo e no README. Diagnóstico de repositório existente não foi feito. |
 | 2 Estrutura inicial | ✅ | backend/, frontend/, workflows/, Docker, .env.example |
 | 3 Banco de dados | 🟡 | SQLAlchemy; SQLite testado. PostgreSQL configurado, **não executado**. Sem Alembic (tabelas criadas no start). |
-| 4 Backend e autenticação | 🟡 | Chave de administrador (fail-closed). Faltam usuários, senhas com hash, sessões, rate limit. |
+| 4 Backend e autenticação | ✅ | Conta proprietária inicial via ambiente, senha PBKDF2-HMAC-SHA256, sessão HttpOnly de 12h, logout, limitação persistida de tentativas; `X-API-Key` legado mantido para integrações. |
 | 5 Sistema de tarefas | ✅ | prioridades, dependências, retentativas, logs, cancelamento, auditoria |
 | 6 CEO Agent | ✅ | pipeline fixo `new_product` de 10 passos; para na aprovação |
 | 7 12 agentes | 🟡 | 13 cadastrados; hoje só chamam o provedor de IA (sem ferramentas próprias) |
@@ -25,14 +25,14 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 18 Produção | ⬜ | backups, HTTPS, monitoramento externo |
 
 ## Testes executados
-- Backend: `pytest` — 36 passam (tarefas, aprovações, política, CEO, custos, orçamento, health, logs sem segredo, autenticação).
-- Frontend: `vitest` — 11 passam (formatação, cliente da API, login, painel vazio sem números inventados, decisão de aprovação). `tsc` e `vite build` limpos.
+- Backend: 38 passam incluindo hash, login, sessão, expiração, logout e rate limit; `test_request_logging_has_no_secrets` não captura o logger existente (`propagate=False`).
+- Frontend: `tsc --noEmit` passa; Vitest e Vite não concluíram nesta sessão por falta de memória disponível no host. A suíte base tinha 11 testes.
 - Manual: backend real servindo o painel; login, plano do CEO, execução da fila (mock), venda/despesa, aprovação pendente; capturas desktop e celular sem erros de console.
 - Não existem testes para: Telegram, n8n, geração de arquivos, PostgreSQL (nada disso está implementado ou foi executado).
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
-- Chave de administrador digitada no login e guardada em sessionStorage; trocar por login real na Fase 4.
+- Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD`; gerenciamento de contas não existe no painel.
 - Docker/compose não foram executados (sem daemon na sessão de desenvolvimento).
 - Sem migrações: mudar uma tabela exige recriar o banco até existir Alembic.
 
@@ -47,6 +47,6 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 ## Próximas tarefas
 1. Conectar GitHub e subir `main`/`develop`.
 2. Testar Ollama real e ajustar.
-3. Autenticação real (usuários, hash, sessão, rate limit).
+3. Gerenciamento de usuários e alteração de senha pelo painel.
 4. Ferramentas dos agentes (Market Hunter via Apify; Product Creator gerando XLSX).
 5. Telegram; webhooks do n8n; Alembic.

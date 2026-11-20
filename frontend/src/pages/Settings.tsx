@@ -25,7 +25,7 @@ export function Settings() {
               {[
                 ["Provedor de IA", s.data.llm_provider], ["Ollama (URL)", s.data.ollama_url], ["Ollama (modelo)", s.data.ollama_model],
                 ["Tentativas por tarefa", String(s.data.max_task_attempts)], ["Orçamento mensal de IA", usdFromDollars(s.data.ai_monthly_budget_usd)],
-                ["Banco de dados", s.data.database_dialect], ["Chave de administrador configurada", s.data.admin_key_configured ? "sim" : "não"],
+                ["Banco de dados", s.data.database_dialect], ["Conta do proprietário configurada", s.data.owner_account_configured ? "sim" : "não"],
               ].map(([k, v]) => (<div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="m-0 num">{v}</dd></div>))}
             </dl>
           </Section>

@@ -6,20 +6,26 @@ Painel + backend que coordenam uma equipe de 13 agentes de IA (CEO + especialist
 Requisitos: Python 3.12+, Node 22+.
 
 ```bash
-cp .env.example .env            # defina ADMIN_API_KEY
 # backend
 cd backend
 pip install -r requirements.txt
-ADMIN_API_KEY=sua-chave python -m uvicorn app.main:app --port 8000
+OWNER_EMAIL=owner@example.com OWNER_PASSWORD='use-uma-senha-com-12-ou-mais-caracteres' python -m uvicorn app.main:app --port 8000
 # painel (outro terminal)
 cd frontend
 npm install
 npm run dev                      # http://localhost:5173, proxy para :8000
 ```
-Para servir o painel pelo backend: `npm run build` e abra http://localhost:8000. Entre com a `ADMIN_API_KEY`.
+Para servir o painel pelo backend: `npm run build` e abra http://localhost:8000. Entre com a conta do proprietário.
 
 ## Com Docker (PostgreSQL)
-Preencha `.env` (ADMIN_API_KEY, POSTGRES_PASSWORD) e rode `docker compose up --build`. Painel em http://localhost:8000. *(Não executado durante o desenvolvimento.)*
+Defina `OWNER_EMAIL`, `OWNER_PASSWORD` (mínimo 12 caracteres) e `POSTGRES_PASSWORD` no `.env` e rode `docker compose up --build`. Painel em http://localhost:8000.
+
+## Autenticação
+- A primeira inicialização cria a conta proprietária a partir de `OWNER_EMAIL` e `OWNER_PASSWORD`; usuários e hashes de senha ficam no banco. O hash usa PBKDF2-HMAC-SHA256.
+- O login usa sessão opaca em cookie `HttpOnly`, `SameSite=Lax`, com validade de 12 horas. `AUTH_COOKIE_SECURE=true` deve ser usado atrás de HTTPS.
+- Após cinco falhas de login do mesmo IP em 15 minutos, novos logins são bloqueados por 15 minutos. O contador é persistido no banco.
+- `ADMIN_API_KEY` continua opcional para integrações legadas que chamem a API com `X-API-Key`; não é usada pelo painel. Sem conta proprietária e sem chave de integração, endpoints protegidos falham fechados.
+- A senha inicial é criada apenas quando a conta não existe; para trocar credenciais, atualize o banco por procedimento administrativo seguro antes de alterar/remover os valores de bootstrap.
 
 ## IA e custos
 - `LLM_PROVIDER=mock` (padrão): não chama modelo; saída marcada `[MOCK]`.
@@ -37,6 +43,6 @@ cd frontend && npm test && npm run build
 Logs JSON no stdout com `request_id`; `GET /health` (público) informa banco e provedor.
 
 ## Limitações atuais
-Sem Telegram, sem Claude/Gemini, só 1 workflow n8n, sem login com usuários, sem migrações. Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
+Sem Telegram, sem Claude/Gemini, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem migrações. Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
 
 Workflows n8n: `workflows/n8n/`.

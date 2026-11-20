@@ -5,6 +5,8 @@ import tempfile
 _tmp = tempfile.mkdtemp()
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
 os.environ["ADMIN_API_KEY"] = "test-key"
+os.environ["OWNER_EMAIL"] = "owner@example.com"
+os.environ["OWNER_PASSWORD"] = "test-password"
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["MAX_TASK_ATTEMPTS"] = "3"
 

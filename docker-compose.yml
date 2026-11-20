@@ -16,7 +16,10 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://steady:${POSTGRES_PASSWORD}@db:5432/steady
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?defina ADMIN_API_KEY no .env}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      OWNER_EMAIL: ${OWNER_EMAIL:?defina OWNER_EMAIL no .env}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:?defina OWNER_PASSWORD no .env}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}

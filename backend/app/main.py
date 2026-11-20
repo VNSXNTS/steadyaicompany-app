@@ -9,12 +9,14 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+from app.api.auth import router as auth_router
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.database.session import Base, SessionLocal, engine
 from app.models import entities  # noqa: F401  (registra os modelos)
 from app.services.agent_registry import seed_agents
+from app.services.auth import ensure_owner_account
 
 setup_logging(get_settings().log_level)
 logger = logging.getLogger("steady.http")
@@ -26,6 +28,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         seed_agents(db, model_name=get_settings().llm_provider)
+        ensure_owner_account(db)
     yield
 
 
@@ -51,6 +54,7 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(router)
+app.include_router(auth_router)
 
 
 @app.get("/health")

@@ -14,24 +14,29 @@ const emptyDash = { agents_active: 13, agents_total: 13, tasks_running: 0, tasks
 const emptySeries = { days: Array.from({ length: 30 }, (_, i) => ({ date: `2026-11-${String(i + 1).padStart(2, "0")}`, net_revenue_cents: 0, expenses_cents: 0, tasks_completed: 0 })) };
 
 describe("Login", () => {
-  it("mostra erro com chave errada e não guarda a chave", async () => {
+  it("mostra erro com senha errada e não guarda a senha no navegador", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ detail: "x" }, 401)));
     const done = vi.fn();
     render(<Login onDone={done} />);
-    await userEvent.type(screen.getByLabelText(/chave de acesso/i), "errada");
+    await userEvent.type(screen.getByLabelText(/e-mail/i), "owner@example.com");
+    await userEvent.type(screen.getByLabelText(/senha/i), "errada");
     await userEvent.click(screen.getByRole("button", { name: /entrar/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Chave de acesso incorreta");
+    expect(await screen.findByRole("alert")).toHaveTextContent("E-mail ou senha inválidos");
     expect(done).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem("steady_admin_key")).toBeNull();
+    expect(sessionStorage.length).toBe(0);
   });
-  it("guarda a chave quando o servidor aceita", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(emptyDash)));
+  it("envia credenciais e entra quando o servidor aceita", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ ok: true }));
+    vi.stubGlobal("fetch", fetch);
     const done = vi.fn();
     render(<Login onDone={done} />);
-    await userEvent.type(screen.getByLabelText(/chave de acesso/i), "certa");
+    await userEvent.type(screen.getByLabelText(/e-mail/i), "owner@example.com");
+    await userEvent.type(screen.getByLabelText(/senha/i), "correta");
     await userEvent.click(screen.getByRole("button", { name: /entrar/i }));
     await waitFor(() => expect(done).toHaveBeenCalled());
-    expect(sessionStorage.getItem("steady_admin_key")).toBe("certa");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ email: "owner@example.com", password: "correta" });
+    expect(fetch.mock.calls[0][1].credentials).toBe("same-origin");
+    expect(sessionStorage.length).toBe(0);
   });
 });
 
@@ -58,7 +63,6 @@ describe("Approvals", () => {
       return Promise.resolve(json([approval]));
     });
     vi.stubGlobal("fetch", f);
-    sessionStorage.setItem("steady_admin_key", "k");
     render(<ToastProvider><Approvals /></ToastProvider>);
     await userEvent.type(await screen.findByLabelText(/observação/i), "ok pode");
     await userEvent.click(screen.getByRole("button", { name: "Aprovar" }));

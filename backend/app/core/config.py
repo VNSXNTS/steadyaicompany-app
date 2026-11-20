@@ -8,6 +8,9 @@ from pathlib import Path
 class Settings:
     database_url: str
     admin_api_key: str
+    owner_email: str
+    owner_password: str
+    auth_cookie_secure: bool
     llm_provider: str
     ollama_url: str
     ollama_model: str
@@ -26,6 +29,9 @@ def get_settings() -> Settings:
         database_url=os.getenv("DATABASE_URL", "sqlite:///./storage/steady.db"),
         # Sem chave configurada, a API protegida recusa todas as chamadas (fail closed).
         admin_api_key=os.getenv("ADMIN_API_KEY", ""),
+        owner_email=os.getenv("OWNER_EMAIL", "").strip().lower(),
+        owner_password=os.getenv("OWNER_PASSWORD", ""),
+        auth_cookie_secure=os.getenv("AUTH_COOKIE_SECURE", "false").lower() in ("1", "true", "yes"),
         llm_provider=os.getenv("LLM_PROVIDER", "mock"),
         ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "llama3.2"),

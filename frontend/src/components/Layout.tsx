@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { api, type Dashboard } from "../lib/api";
 import { useApi, useRoute } from "../lib/hooks";
 
@@ -12,10 +12,23 @@ const NAV = [
   { to: "/configuracoes", label: "Configurações" },
 ];
 
-export function Layout({ children, onLogout }: { children: ReactNode; onLogout: () => void }) {
+export function Layout({ children, onLogout }: { children: ReactNode; onLogout: () => Promise<void> }) {
+  const [logoutError, setLogoutError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
   const { path } = useRoute();
   const { data } = useApi(() => api.get<Dashboard>("/dashboard"), [path]);
   const pending = data?.approvals_needed ?? 0;
+  async function logout() {
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      await onLogout();
+    } catch (err) {
+      setLogoutError((err as Error).message);
+    } finally {
+      setLoggingOut(false);
+    }
+  }
   return (
     <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
       <nav aria-label="Principal" className="md:sticky md:top-0 md:h-screen md:border-r border-b md:border-b-0 border-line px-4 py-4 md:py-8 flex md:flex-col gap-1 overflow-x-auto">
@@ -37,7 +50,8 @@ export function Layout({ children, onLogout }: { children: ReactNode; onLogout: 
             </a>
           );
         })}
-        <button className="btn btn-small md:mt-auto whitespace-nowrap" onClick={onLogout}>Sair</button>
+        {logoutError && <p role="alert" className="text-sm">{logoutError}</p>}
+        <button className="btn btn-small md:mt-auto whitespace-nowrap" disabled={loggingOut} onClick={logout}>{loggingOut ? "Saindo…" : "Sair"}</button>
       </nav>
       <main className="px-5 md:px-10 py-8 max-w-6xl w-full">{children}</main>
     </div>
