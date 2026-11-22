@@ -1,4 +1,4 @@
-# PROJECT_STATUS — Steady AI Company (v0.2.0, 2026-11-19)
+# PROJECT_STATUS — Steady AI Company (v0.2.0 + autenticação em revisão no PR nº 1, 2026-11-21)
 
 Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 
@@ -8,7 +8,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 1 Diagnóstico e arquitetura | 🟡 | Sem acesso ao GitHub nesta sessão; arquitetura documentada neste arquivo e no README. Diagnóstico de repositório existente não foi feito. |
 | 2 Estrutura inicial | ✅ | backend/, frontend/, workflows/, Docker, .env.example |
 | 3 Banco de dados | 🟡 | SQLAlchemy; SQLite testado. PostgreSQL configurado, **não executado**. Sem Alembic (tabelas criadas no start). |
-| 4 Backend e autenticação | ✅ | Conta proprietária inicial via ambiente, senha PBKDF2-HMAC-SHA256, sessão HttpOnly de 12h, logout, limitação persistida de tentativas; `X-API-Key` legado mantido para integrações. |
+| 4 Backend e autenticação | 🟡 | **Em revisão (PR nº 1), não mesclada.** Feito e testado: conta do proprietário via ambiente, hash PBKDF2-HMAC-SHA256, sessão `HttpOnly` + `SameSite=Strict` de 12h, logout que invalida no servidor, bloqueio por IP, auditoria de login sem senha, `X-API-Key` desligada por padrão. **Faltam** (escopo original): CLI de criação de usuário, bloqueio por usuário, CSRF, hash argon2/bcrypt, teste manual no navegador. |
 | 5 Sistema de tarefas | ✅ | prioridades, dependências, retentativas, logs, cancelamento, auditoria |
 | 6 CEO Agent | ✅ | pipeline fixo `new_product` de 10 passos; para na aprovação |
 | 7 12 agentes | 🟡 | 13 cadastrados; hoje só chamam o provedor de IA (sem ferramentas próprias) |
@@ -24,15 +24,18 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 17 Testes completos | 🟡 | ver abaixo |
 | 18 Produção | ⬜ | backups, HTTPS, monitoramento externo |
 
-## Testes executados
-- Backend: 38 passam incluindo hash, login, sessão, expiração, logout e rate limit; `test_request_logging_has_no_secrets` não captura o logger existente (`propagate=False`).
-- Frontend: `tsc --noEmit` passa; Vitest e Vite não concluíram nesta sessão por falta de memória disponível no host. A suíte base tinha 11 testes.
-- Manual: backend real servindo o painel; login, plano do CEO, execução da fila (mock), venda/despesa, aprovação pendente; capturas desktop e celular sem erros de console.
-- Não existem testes para: Telegram, n8n, geração de arquivos, PostgreSQL (nada disso está implementado ou foi executado).
+## Testes executados (sessão de 2026-11-21, Linux, Python 3.13, Node 22)
+- Backend: `python -m pytest -q` → **56 passed**, 0 falhas, 0 erros (39 existentes + 17 em `test_auth_security.py`).
+- Frontend: `npm ci && npm test` → **3 arquivos, 11 testes passed**. `npm run build` (tsc + vite build) e `npx tsc --noEmit` saem com código 0.
+- Mutação: 11 quebras deliberadas das regras de segurança (senha em texto puro, `SameSite`, `HttpOnly`, bloqueio desligado, senha/e-mail na auditoria, rotas sem proteção, logout sem apagar sessão, `X-API-Key` aberta, senha em log, senha padrão) → os testes correspondentes falharam em todas; código restaurado depois.
+- **Não verificado:** o erro local "no tests, 3 errors" do Vitest **não reproduziu** num `npm ci` limpo (causa provável: `node_modules` local desatualizado; não confirmado). O pytest **não foi rodado no Windows** do proprietário (o `pyreadline` nem existe neste Linux). Login manual no navegador com o cookie `SameSite=Strict` não foi feito nesta sessão. PostgreSQL, Docker/compose, Ollama real, Telegram, n8n e geração de arquivos continuam sem teste.
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
-- Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD`; gerenciamento de contas não existe no painel.
+- Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD` (a senha passa por variável de ambiente); não há CLI nem tela de gerenciamento de contas.
+- Bloqueio de login é só por IP (atrás de proxy reverso o IP visto é o do proxy), não por usuário. Sem token CSRF (só `SameSite=Strict`).
+- Hash PBKDF2-HMAC-SHA256 com 260.000 rodadas, abaixo das 600.000 que a OWASP recomenda para essa combinação; o escopo pedia argon2 ou bcrypt.
+- A tabela `audit_logs` cresce a cada tentativa de login (inclusive bloqueadas); não há limpeza nem rotação.
 - Docker/compose não foram executados (sem daemon na sessão de desenvolvimento).
 - Sem migrações: mudar uma tabela exige recriar o banco até existir Alembic.
 
@@ -47,6 +50,6 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 ## Próximas tarefas
 1. Conectar GitHub e subir `main`/`develop`.
 2. Testar Ollama real e ajustar.
-3. Gerenciamento de usuários e alteração de senha pelo painel.
+3. Fechar a autenticação: CLI de usuário, bloqueio por usuário, CSRF, argon2/bcrypt, teste manual no navegador; depois gerenciamento de usuários e troca de senha no painel.
 4. Ferramentas dos agentes (Market Hunter via Apify; Product Creator gerando XLSX).
 5. Telegram; webhooks do n8n; Alembic.
