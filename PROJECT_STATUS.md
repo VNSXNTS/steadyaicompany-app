@@ -20,7 +20,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 13 Steady Payoff | 🟡 | planilha e página de vendas prontas (entregues antes); ainda não integradas ao sistema |
 | 14 Landing + checklist | ⬜ | checklist de 20 itens não implementado |
 | 15 Marketing e vendas | ⬜ | |
-| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório. **Recorte 16a (antecipado, em revisão na branch `feature/fase-16a-experimentos`, empilhada sobre o PR nº 2):** experimentos de validação com CPA, ROI e recomendação por regras, só API. Ver `docs/EXPERIMENTOS.md`. |
+| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório. **Recorte 16a (antecipado, em revisão na branch `feature/fase-16a-experimentos`, empilhada sobre o PR nº 2):** experimentos de validação com CPA, ROI e recomendação por regras, só API. Primeiro teste: EUA/USD (decisão do proprietário). Parâmetros do 1º experimento ainda a definir. Ver `docs/EXPERIMENTOS.md`. |
 | 17 Testes completos | 🟡 | ver abaixo |
 | 18 Produção | ⬜ | backups, HTTPS, monitoramento externo |
 

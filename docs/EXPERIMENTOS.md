@@ -6,6 +6,9 @@ campanha de vendas com público aberto, orçamento inicial pequeno, escala só d
 (CPA de R$ 6–7, vendas em poucas horas) são do próprio autor e **não foram verificados**. O método aqui é uma disciplina
 de decisão, **não uma promessa de lucro**.
 
+## Decisão do proprietário (2026-11-22)
+O primeiro teste é no **mercado EUA, em dólar (`US` / `USD`)**, coerente com o Steady Payoff. Com uma moeda só, a limitação do dashboard abaixo não afeta este teste. O CPA do vídeo é brasileiro e **não se transfere**: o CPA real nos EUA só se conhece medindo, e deve ser bem diferente. Preço, teto de gasto e mínimo de vendas do primeiro experimento **ainda não foram definidos** pelo proprietário.
+
 ## O que o sistema faz e não faz
 - **Faz:** guarda um experimento com orçamento e critérios de parada definidos antes de gastar; calcula CPA, CPA de
   equilíbrio, receita líquida, lucro e ROI; recomenda continuar, parar ou "candidato a validada"; recusa marcar como
@@ -40,7 +43,7 @@ vendas, **`null` sem vendas**. Reembolsos futuros não são estimados no CPA de 
 ## Limites conhecidos (leia antes de usar dinheiro de verdade)
 - **Evidência fraca por natureza:** com poucas vendas, o acaso pesa muito. As regras são critérios de disciplina
   (parar cedo, não escalar no escuro), não um teste estatístico.
-- **Dashboard de uma moeda só:** gasto e vendas de experimentos alimentam o `/dashboard` e o Financeiro sem duplicar,
+- **Dashboard de uma moeda só (não afeta o teste nos EUA, só se algum dia entrar BRL):** gasto e vendas de experimentos alimentam o `/dashboard` e o Financeiro sem duplicar,
   mas o painel **não converte moedas**. Misturar BRL e USD dá totais sem sentido. Isso precisa ser resolvido antes de
   operar nos dois mercados.
 - **Sem tela:** só API por enquanto (o painel é da Fase 11). Sem edição nem exclusão de experimentos.
