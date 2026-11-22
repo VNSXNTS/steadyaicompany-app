@@ -126,4 +126,4 @@ def test_postgres_backup_then_restore_round_trip(tmp_path):
     assert _names(engine) == ["Steady Payoff"]
     assert safety.exists()
     with engine.connect() as c:  # a versão do esquema também voltou
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0001"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0002"

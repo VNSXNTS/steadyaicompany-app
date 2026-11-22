@@ -33,6 +33,9 @@ Defina `OWNER_EMAIL`, `OWNER_PASSWORD` (mínimo 12 caracteres) e `POSTGRES_PASSW
 ## Banco de dados
 O esquema nasce só de migrações Alembic, executadas ao iniciar o backend. `DATABASE_URL` vazio = SQLite local; `postgresql+psycopg://...` = PostgreSQL. Backup e restauração: `python -m app.database.backup backup|verify|restore` (em `backend/`). Guia completo, com o que foi e o que NÃO foi testado (Docker compose não foi): [docs/BANCO.md](docs/BANCO.md).
 
+## Experimentos de validação de oferta
+Teste com orçamento pequeno e critérios de parada definidos antes de gastar, com CPA, ROI e recomendação por regras; exige sua aprovação para começar e recusa marcar como validada uma oferta que não cumpriu as regras. O sistema não gasta nem publica anúncio: você roda a campanha e registra gasto e vendas. Só API (sem tela). Não garante lucro. Guia e limites: [docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md).
+
 ## IA e custos
 - `LLM_PROVIDER=mock` (padrão): não chama modelo; saída marcada `[MOCK]`.
 - `LLM_PROVIDER=ollama`: modelo local gratuito (`OLLAMA_URL`, `OLLAMA_MODEL`).
@@ -41,8 +44,8 @@ O esquema nasce só de migrações Alembic, executadas ao iniciar o backend. `DA
 
 ## Testes
 ```bash
-cd backend && python -m pytest -q          # 71 testes coletados: 68 passam em SQLite e 3 (só PostgreSQL) são pulados
-# em PostgreSQL real: TEST_DATABASE_URL=postgresql+psycopg://... (banco DESCARTÁVEL) python -m pytest -q   # 71 passam
+cd backend && python -m pytest -q          # 96 testes coletados: 93 passam em SQLite e 3 (só PostgreSQL) são pulados
+# em PostgreSQL real: TEST_DATABASE_URL=postgresql+psycopg://... (banco DESCARTÁVEL) python -m pytest -q   # 96 passam
 cd frontend && npm ci && npm test && npm run build   # 11 testes + tsc + vite build
 ```
 Se `npm test` acusar "no tests" ou erros de carregamento, apague `node_modules` e rode `npm ci`. No Windows, se o pytest quebrar com `module 'collections' has no attribute 'Callable'`, rode `pip uninstall -y pyreadline`.

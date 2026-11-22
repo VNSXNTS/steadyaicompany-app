@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import require_admin
 from app.database.session import get_db
-from app.models.entities import Agent, Approval, Expense, Product, Sale, Task, TaskLog
+from app.models.entities import Agent, Approval, Expense, Experiment, Product, Sale, Task, TaskLog
 from app.schemas import schemas as s
-from app.services import ceo, costs, metrics
+from app.services import ceo, costs, experiments, metrics
 from app.services.llm import get_provider
 from app.services.tasks import TaskError, audit, create_task, decide_approval, run_task
 
@@ -190,6 +190,95 @@ def post_expense(body: s.ExpenseIn, db: Session = Depends(get_db)):
     audit(db, "admin", "expense_recorded", body.model_dump())
     db.commit()
     return {"id": e.id}
+
+
+# ---- experimentos de validação de oferta (o sistema não gasta: o proprietário registra gasto e vendas) ----
+def _experiment(db: Session, experiment_id: int) -> Experiment:
+    exp = db.get(Experiment, experiment_id)
+    if exp is None:
+        raise HTTPException(404, "Experimento não encontrado")
+    return exp
+
+
+def _experiment_out(db: Session, exp: Experiment) -> s.ExperimentOut:
+    out = s.ExperimentOut.model_validate(exp)
+    out.metrics = experiments.metrics(db, exp)
+    return out
+
+
+@router.post("/experiments", response_model=s.ExperimentOut, status_code=201)
+def post_experiment(body: s.ExperimentIn, db: Session = Depends(get_db)):
+    if body.product_id is not None and db.get(Product, body.product_id) is None:
+        raise HTTPException(404, "Produto não encontrado")
+    exp = Experiment(**body.model_dump())
+    db.add(exp)
+    db.flush()
+    audit(db, "admin", "experiment_created", {"experiment_id": exp.id, "budget_cap_cents": exp.budget_cap_cents})
+    db.commit()
+    return _experiment_out(db, exp)
+
+
+@router.get("/experiments", response_model=list[s.ExperimentOut])
+def list_experiments(db: Session = Depends(get_db)):
+    return [_experiment_out(db, e) for e in db.scalars(select(Experiment).order_by(Experiment.id.desc()))]
+
+
+@router.get("/experiments/{experiment_id}", response_model=s.ExperimentOut)
+def get_experiment(experiment_id: int, db: Session = Depends(get_db)):
+    return _experiment_out(db, _experiment(db, experiment_id))
+
+
+@router.post("/experiments/{experiment_id}/request-approval", response_model=s.ApprovalOut, status_code=202)
+def request_experiment_approval(experiment_id: int, db: Session = Depends(get_db)):
+    """Pede aprovação para o teste começar. Sem aprovação o experimento não autoriza nenhum gasto."""
+    exp = _experiment(db, experiment_id)
+    if exp.status != "draft":
+        raise HTTPException(409, f"Só um rascunho pede aprovação (status atual: {exp.status})")
+    details, consequences = experiments.request_approval_details(exp)
+    approval = Approval(action="activate_campaign", details=details, consequences=consequences)
+    exp.status = "pending_approval"
+    db.add(approval)
+    audit(db, "admin", "experiment_approval_requested", {"experiment_id": exp.id})
+    db.commit()
+    return approval
+
+
+@router.post("/experiments/{experiment_id}/spend", status_code=201)
+def post_experiment_spend(experiment_id: int, body: s.ExperimentSpendIn, db: Session = Depends(get_db)):
+    exp = _experiment(db, experiment_id)
+    if exp.status == "closed":
+        raise HTTPException(409, "Experimento encerrado: não aceita novos registros")
+    e = Expense(category="ads", description=body.note or f"Experimento #{exp.id}: {exp.name}",
+                amount_cents=body.amount_cents, experiment_id=exp.id)
+    db.add(e)
+    audit(db, "admin", "experiment_spend_recorded", {"experiment_id": exp.id, "amount_cents": body.amount_cents})
+    db.commit()
+    return {"id": e.id, "metrics": experiments.metrics(db, exp)}
+
+
+@router.post("/experiments/{experiment_id}/sales", status_code=201)
+def post_experiment_sale(experiment_id: int, body: s.ExperimentSaleIn, db: Session = Depends(get_db)):
+    exp = _experiment(db, experiment_id)
+    if exp.status == "closed":
+        raise HTTPException(409, "Experimento encerrado: não aceita novos registros")
+    if body.fee_cents + body.refunded_cents > body.gross_cents:
+        raise HTTPException(400, "Taxas + reembolsos não podem passar do valor bruto")
+    sale = Sale(product_id=exp.product_id, experiment_id=exp.id, **body.model_dump())
+    db.add(sale)
+    db.commit()
+    return {"id": sale.id, "metrics": experiments.metrics(db, exp)}
+
+
+@router.post("/experiments/{experiment_id}/close", response_model=s.ExperimentOut)
+def close_experiment(experiment_id: int, body: s.ExperimentCloseIn, db: Session = Depends(get_db)):
+    exp = _experiment(db, experiment_id)
+    try:
+        experiments.close(db, exp, body.outcome, body.note)
+    except experiments.ExperimentError as e:
+        raise HTTPException(409, str(e))
+    audit(db, "admin", "experiment_closed", {"experiment_id": exp.id, "outcome": body.outcome})
+    db.commit()
+    return _experiment_out(db, exp)
 
 
 @router.get("/dashboard")
