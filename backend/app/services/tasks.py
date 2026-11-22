@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.entities import Agent, Approval, AuditLog, Product, Task, TaskLog, TaskStatus
+from app.models.entities import Agent, Approval, AuditLog, Experiment, Product, Task, TaskLog, TaskStatus
 from app.services import costs, policy
 from app.services.llm import LLMProvider, get_provider
 
@@ -174,6 +174,18 @@ def decide_approval(db: Session, approval_id: int, decision: str, note: str = ""
         product = db.get(Product, pid) if pid else None
         if product is not None:
             product.status = "published"
+
+    # Um experimento só passa a valer (autoriza gasto) com aprovação. Pedir alterações volta a rascunho.
+    exp_id = approval.details.get("experiment_id") if approval.action == "activate_campaign" else None
+    experiment = db.get(Experiment, exp_id) if exp_id else None
+    if experiment is not None and experiment.status == "pending_approval":
+        if decision == "approved":
+            experiment.status = "approved"
+            experiment.approved_at = datetime.now(timezone.utc)
+        elif decision == "rejected":
+            experiment.status = "rejected"
+        else:
+            experiment.status = "draft"
 
     audit(db, "admin", f"approval_{decision}", {"approval_id": approval.id, "action": approval.action})
     db.commit()

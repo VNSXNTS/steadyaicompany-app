@@ -20,7 +20,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 13 Steady Payoff | 🟡 | planilha e página de vendas prontas (entregues antes); ainda não integradas ao sistema |
 | 14 Landing + checklist | ⬜ | checklist de 20 itens não implementado |
 | 15 Marketing e vendas | ⬜ | |
-| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório |
+| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório. **Recorte 16a (antecipado, em revisão na branch `feature/fase-16a-experimentos`, empilhada sobre o PR nº 2):** experimentos de validação com CPA, ROI e recomendação por regras, só API. Primeiro teste: EUA/USD (decisão do proprietário). Parâmetros do 1º experimento ainda a definir. Ver `docs/EXPERIMENTOS.md`. |
 | 17 Testes completos | 🟡 | ver abaixo |
 | 18 Produção | ⬜ | backups, HTTPS, monitoramento externo |
 
@@ -35,6 +35,13 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - CLI de ponta a ponta em PostgreSQL real: `alembic upgrade head` → backup → dado apagado → `restore` (recusa sem `--yes`) → dado e versão `0001` de volta → `downgrade base` (0 tabelas) → `upgrade head` (12 tabelas).
 - Mutação: 9 execuções em 8 regras dos testes novos (deriva modelo×migração, adoção de banco v0.2, downgrade, restore sem confirmação, senha do PostgreSQL em argumento, permissão do backup, validação do arquivo de backup, cópia de segurança do restore). Na 1ª rodada 7 falharam como esperado e **1 sobreviveu** (a validação de arquivo de lixo era coberta por outra checagem, então o teste não provava a regra). Foi acrescentado um teste específico (SQLite válido de outro sistema) e o mutante refeito falhou. Resultado final: 8 de 8 regras com teste que reage à quebra. O código foi restaurado byte a byte após cada quebra.
 - **Não verificado:** `docker compose up` e os comandos `docker compose exec` (sem daemon Docker); frontend não foi reexecutado nesta fase (não foi alterado); Windows; PostgreSQL de outra versão; backup agendado.
+
+## Testes da Fase 16a (sessão de 2026-11-22, Linux, Python 3.13, PostgreSQL 16.15 local sem Docker)
+- Backend em SQLite: **93 passed, 3 skipped**. Em PostgreSQL real: **96 passed**. Coletados: 71 anteriores + 24 em `test_experiments.py` + 1 em `test_migrations.py` = 96.
+- Migração `0002` na linha de comando em PostgreSQL real: `upgrade` → despesa inserida → `downgrade 0001` (tabela e coluna removidas, despesa preservada) → `upgrade`.
+- Mutação: 20 quebras deliberadas das regras do experimento (CPA de equilíbrio sem taxas, ROI/CPA 0 sem base, regras de parada, validação invertida, evidência mínima, fechar validado sem checar, líquida sem reembolso, aprovação que não ativa, mercado com padrão etc.) → o teste correspondente falhou em 20 de 20; código restaurado byte a byte.
+- Corrigido nesta fase: o teste de adoção de banco v0.2 usava `create_all` com os modelos atuais e deixou de representar um banco v0.2 real; passou a ser reconstruído a partir da migração `0001`.
+- **Não verificado:** o vídeo de origem (só o resumo do proprietário); `docker compose`; frontend (sem tela de experimentos e não reexecutado); Windows; uso com dinheiro real; conversão entre moedas no dashboard.
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).

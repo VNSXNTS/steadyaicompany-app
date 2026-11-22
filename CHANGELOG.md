@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Experimentos de validação de oferta (Fase 16a, antecipada): `POST/GET /experiments`, aprovação (`activate_campaign`), registro de gasto e vendas, métricas (CPA, CPA de equilíbrio, líquida, lucro, ROI `null` sem base) e recomendação por regras; `validated` só se as regras permitirem. Migração `0002`. O sistema não gasta nem publica anúncios. Mercado e moeda obrigatórios, sem padrão (primeiro teste: EUA/USD, decisão do proprietário). Só API.
+- Testes: `test_experiments.py` (24). Backend: 93 passam e 3 pulam em SQLite; 96 passam em PostgreSQL. Dashboard continua de uma moeda só.
 - Banco (Fase 3): Alembic com migração inicial `0001` (idempotente: adota bancos v0.2 sem perda de dados); o backend migra ao iniciar e `create_all` deixou de ser usado.
 - PostgreSQL 16 testado de verdade (migração e suíte inteira). Variável `TEST_DATABASE_URL` para rodar os testes em PostgreSQL (separada de `DATABASE_URL` de propósito).
 - Backup e restauração: `python -m app.database.backup backup|verify|restore` para SQLite e PostgreSQL; `restore` exige `--yes` e guarda o estado anterior; arquivos com permissão 600; `docs/BANCO.md`.

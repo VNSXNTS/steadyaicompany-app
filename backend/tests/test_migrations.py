@@ -12,7 +12,7 @@ from app.models import entities  # noqa: F401
 
 APP_TABLES = {
     "agents", "audit_logs", "expenses", "login_attempts", "products", "users", "auth_sessions",
-    "sales", "tasks", "ai_usage", "approvals", "task_logs",
+    "sales", "tasks", "ai_usage", "approvals", "task_logs", "experiments",
 }
 NEW_IN_AUTH = {"users", "auth_sessions", "login_attempts"}
 
@@ -36,7 +36,7 @@ def _version(eng) -> str | None:
 def test_upgrade_on_empty_database_creates_every_table(fresh_engine):
     run_migrations(fresh_engine)
     assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
-    assert _version(fresh_engine) == "0001"
+    assert _version(fresh_engine) == "0002"
 
 
 def test_migrated_schema_matches_the_models_exactly(fresh_engine):
@@ -56,15 +56,20 @@ def test_upgrade_twice_is_a_noop(fresh_engine):
     run_migrations(fresh_engine)
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM products")).scalar() == 1
-    assert _version(fresh_engine) == "0001"
+    assert _version(fresh_engine) == "0002"
 
 
-def test_adopts_a_v02_database_created_by_create_all_without_losing_data(fresh_engine):
-    """Banco da v0.2: tabelas sem Alembic e sem as tabelas de autenticação, com dados reais."""
-    Base.metadata.create_all(fresh_engine)
+def test_adopts_a_v02_database_created_without_alembic_without_losing_data(fresh_engine):
+    """Banco da v0.2: tabelas já existentes, sem Alembic e sem tabelas de autenticação/experimentos, com dados.
+
+    O esquema v0.2 é reproduzido pela migração 0001 (que o define); depois removemos o que a v0.2 não tinha
+    e a marca do Alembic, deixando um banco "órfão" com dados reais.
+    """
+    run_migrations(fresh_engine, "0001")
     with fresh_engine.begin() as c:
         for t in NEW_IN_AUTH:
             c.execute(text(f"DROP TABLE {t}"))
+        c.execute(text("DROP TABLE alembic_version"))
         c.execute(text("INSERT INTO products (name, niche, description, price_cents, status, created_at) "
                        "VALUES ('Steady Payoff','debt','d',1900,'draft','2026-01-01 00:00:00')"))
         c.execute(text("INSERT INTO expenses (category, description, amount_cents, created_at) "
@@ -74,10 +79,25 @@ def test_adopts_a_v02_database_created_by_create_all_without_losing_data(fresh_e
 
     run_migrations(fresh_engine)
 
-    assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}  # só faltavam as de autenticação
+    assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
+    assert _version(fresh_engine) == "0002"
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT name, price_cents FROM products")).one() == ("Steady Payoff", 1900)
-        assert c.execute(text("SELECT amount_cents FROM expenses")).scalar() == 250
+        row = c.execute(text("SELECT amount_cents, experiment_id FROM expenses")).one()
+        assert row == (250, None)  # dado antigo intacto; coluna nova nula
+
+
+def test_0002_downgrade_keeps_old_data_and_drops_only_experiment_stuff(fresh_engine):
+    run_migrations(fresh_engine)
+    with fresh_engine.begin() as c:
+        c.execute(text("INSERT INTO expenses (category, description, amount_cents, created_at) "
+                       "VALUES ('ads','x',500,'2026-01-01 00:00:00')"))
+    downgrade(fresh_engine, "0001")
+    assert "experiments" not in _tables(fresh_engine) and _version(fresh_engine) == "0001"
+    cols = {c["name"] for c in inspect(fresh_engine).get_columns("expenses")}
+    assert "experiment_id" not in cols
+    with fresh_engine.connect() as c:
+        assert c.execute(text("SELECT amount_cents FROM expenses")).scalar() == 500
 
 
 def test_downgrade_to_base_removes_everything_and_upgrade_recreates(fresh_engine):

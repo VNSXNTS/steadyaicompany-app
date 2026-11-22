@@ -9,7 +9,7 @@ O esquema é criado **só por migrações Alembic**; `create_all` não é mais u
 o backend executa `alembic upgrade head` na própria conexão (`app/database/migrate.py`). A versão fica na tabela
 `alembic_version` do banco. A URL vem de `DATABASE_URL` (SQLite por padrão; PostgreSQL com `postgresql+psycopg://`).
 
-Migração atual: `0001` (esquema inicial, 12 tabelas, incluindo `users`, `auth_sessions`, `login_attempts`).
+Migração atual: `0002`. A `0001` é o esquema inicial (12 tabelas, incluindo `users`, `auth_sessions`, `login_attempts`); a `0002` cria `experiments` e a coluna `experiment_id` em `sales` e `expenses` (testada em SQLite e PostgreSQL 16.15: `upgrade`, `downgrade` para `0001` preservando dados antigos, `upgrade`).
 
 **Banco antigo (v0.2, criado por `create_all`) (testado):** a `0001` é idempotente. Cria só as tabelas que faltam
 e não altera nem apaga nenhuma existente, então o banco é adotado sem perda de dados. Limite: se uma tabela antiga
@@ -22,7 +22,7 @@ tiver colunas diferentes das esperadas, a `0001` não as corrige.
 3. `pytest`: o teste `test_migrated_schema_matches_the_models_exactly` falha se o modelo e as migrações divergirem.
 
 Comandos úteis (rodar em `backend/`, com `DATABASE_URL` apontando para o banco desejado): `alembic current`,
-`alembic upgrade head`, `alembic downgrade -1`. **`downgrade` é destrutivo** (a `0001` apaga todas as tabelas);
+`alembic upgrade head`, `alembic downgrade -1`. **`downgrade` é destrutivo** (o da `0001` apaga todas as tabelas; o da `0002` apaga os dados de experimentos);
 faça backup antes.
 
 ## 2. PostgreSQL
@@ -80,6 +80,6 @@ docker compose start backend
 - **Instância única:** não há trava entre processos para migrar. Não suba duas réplicas do backend contra o mesmo
   banco ao mesmo tempo na primeira migração.
 - **Backup é manual:** não há agendamento nem rotação. Também não há recuperação para um ponto no tempo.
-- Restauração testada só na mesma versão do PostgreSQL (16) e do esquema (`0001`); entre versões diferentes não foi
+- Restauração testada só na mesma versão do PostgreSQL (16) e do esquema (`0002`); entre versões diferentes não foi
   testada.
 - A tabela `audit_logs` cresce sem limpeza (herdado da Fase 4).

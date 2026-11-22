@@ -134,6 +134,7 @@ class Sale(Base):
     gross_cents: Mapped[int] = mapped_column(Integer)
     fee_cents: Mapped[int] = mapped_column(Integer, default=0)
     refunded_cents: Mapped[int] = mapped_column(Integer, default=0)
+    experiment_id: Mapped[int | None] = mapped_column(ForeignKey("experiments.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -144,7 +145,37 @@ class Expense(Base):
     category: Mapped[str] = mapped_column(String(50))  # ads | hosting | ai | tools | other
     description: Mapped[str] = mapped_column(Text, default="")
     amount_cents: Mapped[int] = mapped_column(Integer)
+    experiment_id: Mapped[int | None] = mapped_column(ForeignKey("experiments.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Experiment(Base):
+    """Teste de validação de uma oferta com orçamento pequeno e critérios de parada definidos ANTES de gastar.
+
+    O sistema não gasta nem publica nada: o proprietário roda a campanha fora e registra gasto e vendas.
+    Dinheiro em centavos da `currency` do experimento. Teto e critérios não podem ser editados depois de criados.
+    """
+
+    __tablename__ = "experiments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    market: Mapped[str] = mapped_column(String(10))  # ex.: US, BR (sem padrão: decisão do proprietário)
+    currency: Mapped[str] = mapped_column(String(3))  # ex.: USD, BRL (sem padrão)
+    price_cents: Mapped[int] = mapped_column(Integer)
+    fee_bps: Mapped[int] = mapped_column(Integer, default=0)  # taxa percentual em pontos-base (499 = 4,99%)
+    fee_fixed_cents: Mapped[int] = mapped_column(Integer, default=0)
+    budget_cap_cents: Mapped[int] = mapped_column(Integer)
+    max_spend_without_sale_cents: Mapped[int] = mapped_column(Integer)
+    min_sales_to_decide: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(30), default="draft")
+    # draft | pending_approval | approved | rejected | closed
+    outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)  # killed | validated
+    outcome_note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):
