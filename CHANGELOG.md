@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Banco (Fase 3): Alembic com migração inicial `0001` (idempotente: adota bancos v0.2 sem perda de dados); o backend migra ao iniciar e `create_all` deixou de ser usado.
+- PostgreSQL 16 testado de verdade (migração e suíte inteira). Variável `TEST_DATABASE_URL` para rodar os testes em PostgreSQL (separada de `DATABASE_URL` de propósito).
+- Backup e restauração: `python -m app.database.backup backup|verify|restore` para SQLite e PostgreSQL; `restore` exige `--yes` e guarda o estado anterior; arquivos com permissão 600; `docs/BANCO.md`.
+- Testes: `test_migrations.py` (7) e `test_backup.py` (8). Backend: 68 passam e 3 pulam em SQLite; 71 passam em PostgreSQL. `docker compose` NÃO foi testado.
+- `test_settings_hide_secrets` passou a esperar o dialeto realmente configurado (antes fixava `sqlite`).
 - Autenticação real do proprietário: contas persistidas, senha com hash PBKDF2-HMAC-SHA256, sessão em cookie HttpOnly com validade de 12 horas, logout e bloqueio de login após cinco falhas em 15 minutos.
 - Login do painel por e-mail e senha; a sessão não é mais armazenada no `sessionStorage`.
 - `OWNER_EMAIL` e `OWNER_PASSWORD` inicializam a conta proprietária; `ADMIN_API_KEY` continua disponível para clientes de API legados.

@@ -30,6 +30,9 @@ Defina `OWNER_EMAIL`, `OWNER_PASSWORD` (mínimo 12 caracteres) e `POSTGRES_PASSW
 - **Ainda não existe** (ver `PROJECT_STATUS.md`): CLI para criar usuários, bloqueio por usuário (hoje só por IP), token CSRF, hash argon2/bcrypt (hoje PBKDF2, 260.000 rodadas).
 - A senha inicial é criada apenas quando a conta não existe; para trocar credenciais, atualize o banco por procedimento administrativo seguro antes de alterar/remover os valores de bootstrap.
 
+## Banco de dados
+O esquema nasce só de migrações Alembic, executadas ao iniciar o backend. `DATABASE_URL` vazio = SQLite local; `postgresql+psycopg://...` = PostgreSQL. Backup e restauração: `python -m app.database.backup backup|verify|restore` (em `backend/`). Guia completo, com o que foi e o que NÃO foi testado (Docker compose não foi): [docs/BANCO.md](docs/BANCO.md).
+
 ## IA e custos
 - `LLM_PROVIDER=mock` (padrão): não chama modelo; saída marcada `[MOCK]`.
 - `LLM_PROVIDER=ollama`: modelo local gratuito (`OLLAMA_URL`, `OLLAMA_MODEL`).
@@ -38,7 +41,8 @@ Defina `OWNER_EMAIL`, `OWNER_PASSWORD` (mínimo 12 caracteres) e `POSTGRES_PASSW
 
 ## Testes
 ```bash
-cd backend && python -m pytest -q          # 56 testes (última execução: Linux, Python 3.13)
+cd backend && python -m pytest -q          # 71 testes coletados: 68 passam em SQLite e 3 (só PostgreSQL) são pulados
+# em PostgreSQL real: TEST_DATABASE_URL=postgresql+psycopg://... (banco DESCARTÁVEL) python -m pytest -q   # 71 passam
 cd frontend && npm ci && npm test && npm run build   # 11 testes + tsc + vite build
 ```
 Se `npm test` acusar "no tests" ou erros de carregamento, apague `node_modules` e rode `npm ci`. No Windows, se o pytest quebrar com `module 'collections' has no attribute 'Callable'`, rode `pip uninstall -y pyreadline`.
@@ -47,6 +51,6 @@ Se `npm test` acusar "no tests" ou erros de carregamento, apague `node_modules` 
 Logs JSON no stdout com `request_id`; `GET /health` (público) informa banco e provedor.
 
 ## Limitações atuais
-Sem Telegram, sem Claude/Gemini, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem migrações. Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
+Sem Telegram, sem Claude/Gemini, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem backup agendado (o backup é manual). Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
 
 Workflows n8n: `workflows/n8n/`.
