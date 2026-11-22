@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -108,7 +109,8 @@ def test_settings_hide_secrets(client):
     assert d["admin_key_configured"] is True
     assert d["owner_account_configured"] is True
     assert "test-key" not in str(d)
-    assert d["database_dialect"] == "sqlite"
+    expected = "postgresql" if os.getenv("TEST_DATABASE_URL", "").startswith("postgresql") else "sqlite"
+    assert d["database_dialect"] == expected
     assert d["integrations"]["telegram"] == "não implementado"
 
 

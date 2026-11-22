@@ -13,7 +13,8 @@ from app.api.auth import router as auth_router
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.database.session import Base, SessionLocal, engine
+from app.database.migrate import run_migrations
+from app.database.session import SessionLocal, engine
 from app.models import entities  # noqa: F401  (registra os modelos)
 from app.services.agent_registry import seed_agents
 from app.services.auth import ensure_owner_account
@@ -24,8 +25,7 @@ logger = logging.getLogger("steady.http")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Para produção, troque create_all por migrações Alembic (ainda não incluídas).
-    Base.metadata.create_all(engine)
+    run_migrations(engine)  # o esquema nasce só de migrações Alembic (ver docs/BANCO.md)
     with SessionLocal() as db:
         seed_agents(db, model_name=get_settings().llm_provider)
         ensure_owner_account(db)
