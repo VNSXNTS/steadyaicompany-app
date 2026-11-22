@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.entities import AuthSession, LoginAttempt, User
+from app.models.entities import AuditLog, AuthSession, LoginAttempt, User
 
 PASSWORD_HASH_ROUNDS = 260_000
 SESSION_TTL_SECONDS = 12 * 60 * 60
@@ -70,9 +70,17 @@ def _ip_hash(ip: str) -> str:
     return hashlib.sha256(ip.encode()).hexdigest()
 
 
+def audit_auth(db: Session, action: str, ip: str, *, email: str | None = None, **detail) -> None:
+    """Auditoria de autenticação. NUNCA recebe a senha. Em falhas o e-mail digitado não é gravado
+    (pode ser uma senha digitada no campo errado); só o IP em hash e se a conta existe."""
+    db.add(AuditLog(actor=email or "anonymous", action=action, detail={"ip_hash": _ip_hash(ip)[:16], **detail}))
+    db.commit()
+
+
 def ensure_login_allowed(db: Session, ip: str, now: int) -> None:
     attempt = db.get(LoginAttempt, _ip_hash(ip))
     if attempt and attempt.blocked_until and attempt.blocked_until > now:
+        audit_auth(db, "auth.login_blocked", ip)
         retry_after = attempt.blocked_until - now
         raise HTTPException(
             429,
@@ -115,6 +123,7 @@ def authenticate(db: Session, email: str, password: str, ip: str) -> tuple[User,
     valid = user is not None and password_valid
     if not valid or not user.is_active:
         record_login_failure(db, ip, now)
+        audit_auth(db, "auth.login_failed", ip, known_user=user is not None)
         raise HTTPException(401, "E-mail ou senha inválidos")
     clear_login_failures(db, ip)
     raw_token = secrets.token_urlsafe(32)
@@ -124,6 +133,7 @@ def authenticate(db: Session, email: str, password: str, ip: str) -> tuple[User,
         expires_at=now + SESSION_TTL_SECONDS,
     ))
     db.commit()
+    audit_auth(db, "auth.login_success", ip, email=user.email)
     return user, raw_token
 
 
@@ -134,11 +144,11 @@ def set_session_cookie(response: Response, token: str) -> None:
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
         secure=get_settings().auth_cookie_secure,
-        samesite="lax",
+        samesite="strict",
         path="/",
     )
 
 
 def clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=get_settings().auth_cookie_secure,
-                           samesite="lax")
+                           samesite="strict")
