@@ -228,12 +228,48 @@ def get_experiment(experiment_id: int, db: Session = Depends(get_db)):
     return _experiment_out(db, _experiment(db, experiment_id))
 
 
+@router.put("/experiments/{experiment_id}/launch-plan", response_model=s.ExperimentOut)
+def put_launch_plan(experiment_id: int, body: s.LaunchPlanIn, db: Session = Depends(get_db)):
+    """Ângulos de criativo e checklist atestado pelo proprietário. Só em rascunho: depois de pedir aprovação,
+    o plano aprovado não muda. O sistema não verifica o checklist no mundo real."""
+    exp = _experiment(db, experiment_id)
+    if exp.status != "draft":
+        raise HTTPException(409, f"O plano de lançamento só muda em rascunho (status atual: {exp.status})")
+    unknown = set(body.checklist) - set(experiments.LAUNCH_CHECKLIST)
+    if unknown:
+        raise HTTPException(422, f"Itens de checklist desconhecidos: {sorted(unknown)}")
+    exp.creative_angles = [a.model_dump() for a in body.creative_angles]
+    exp.launch_checklist = {k: bool(v) for k, v in body.checklist.items()}
+    audit(db, "admin", "experiment_launch_plan_updated",
+          {"experiment_id": exp.id, "angles": len(exp.creative_angles),
+           "checklist_done": sum(exp.launch_checklist.values())})
+    db.commit()
+    return _experiment_out(db, exp)
+
+
+@router.post("/experiments/{experiment_id}/scale", response_model=s.ExperimentOut, status_code=201)
+def scale_experiment(experiment_id: int, body: s.ExperimentScaleIn, db: Session = Depends(get_db)):
+    """Cria a etapa de escala (rascunho) a partir de um experimento VALIDADO. Não gasta nada: precisa de
+    checklist novo e de nova aprovação, como qualquer experimento."""
+    parent = _experiment(db, experiment_id)
+    try:
+        child = experiments.create_scale_stage(db, parent, **body.model_dump())
+    except experiments.ExperimentError as e:
+        raise HTTPException(409, str(e))
+    audit(db, "admin", "experiment_scale_created",
+          {"experiment_id": child.id, "parent_experiment_id": parent.id, "budget_cap_cents": child.budget_cap_cents})
+    db.commit()
+    return _experiment_out(db, child)
+
+
 @router.post("/experiments/{experiment_id}/request-approval", response_model=s.ApprovalOut, status_code=202)
 def request_experiment_approval(experiment_id: int, db: Session = Depends(get_db)):
     """Pede aprovação para o teste começar. Sem aprovação o experimento não autoriza nenhum gasto."""
     exp = _experiment(db, experiment_id)
-    if exp.status != "draft":
-        raise HTTPException(409, f"Só um rascunho pede aprovação (status atual: {exp.status})")
+    try:
+        experiments.assert_can_request_approval(db, exp)
+    except experiments.ExperimentError as e:
+        raise HTTPException(409, str(e))
     details, consequences = experiments.request_approval_details(exp)
     approval = Approval(action="activate_campaign", details=details, consequences=consequences)
     exp.status = "pending_approval"

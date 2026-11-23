@@ -20,7 +20,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 13 Steady Payoff | 🟡 | planilha e página de vendas prontas (entregues antes); ainda não integradas ao sistema |
 | 14 Landing + checklist | ⬜ | checklist de 20 itens não implementado |
 | 15 Marketing e vendas | ⬜ | |
-| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório. **Recorte 16a (antecipado, em revisão na branch `feature/fase-16a-experimentos`, empilhada sobre o PR nº 2):** experimentos de validação com CPA, ROI e recomendação por regras, só API. Primeiro teste: EUA/USD (decisão do proprietário). Parâmetros do 1º experimento ainda a definir. Ver `docs/EXPERIMENTOS.md`. |
+| 16 Financeiro e relatórios | 🟡 | demonstrativo, registro de vendas/despesas, custos de IA; sem exportação de relatório. **Recorte 16a (antecipado, em revisão na branch `feature/fase-16a-experimentos`, empilhada sobre o PR nº 2):** experimentos de validação com CPA, ROI e recomendação por regras, só API. Primeiro teste: EUA/USD (decisão do proprietário). Parâmetros do 1º experimento ainda a definir. **Recorte 16b (branch `feature/fase-16b-validacao`, empilhada sobre o PR nº 3, em revisão):** checklist atestado + 3 ângulos antes de pedir aprovação, evento sazonal, escala só após validar. Order bump, tela e conversão de moedas **não existem**. Ver `docs/EXPERIMENTOS.md`. |
 | 17 Testes completos | 🟡 | ver abaixo |
 | 18 Produção | ⬜ | backups, HTTPS, monitoramento externo |
 
@@ -43,6 +43,12 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Corrigido nesta fase: o teste de adoção de banco v0.2 usava `create_all` com os modelos atuais e deixou de representar um banco v0.2 real; passou a ser reconstruído a partir da migração `0001`.
 - **Não verificado:** o vídeo de origem (só o resumo do proprietário); `docker compose`; frontend (sem tela de experimentos e não reexecutado); Windows; uso com dinheiro real; conversão entre moedas no dashboard.
 
+## Testes da Fase 16b (sessão de 2026-11-22, Linux, Python 3.13, PostgreSQL 16.15 local sem Docker)
+- Backend em SQLite: **120 passed, 3 skipped**. Em PostgreSQL real: **123 passed, 0 skipped**. Contagem: 96 anteriores + 26 em `test_validacao_escala.py` + 1 em `test_migrations.py` = 123.
+- Mutação: 14 quebras deliberadas das regras novas (checklist ignorado, mínimo de ângulos, ângulos repetidos contando, evento passado não parando, evento passado apagando evidência, escala sem exigir validação, teto igual passando, várias escalas abertas, checklist herdado, pedido ignorando bloqueios, plano editável após o pedido, escala de escala, data passada não bloqueando, etapa `scale` gravada como `validation`) → o teste correspondente falhou em 14 de 14; código restaurado byte a byte (`cmp`).
+- Mudança deliberada em testes existentes: o helper `approve` de `test_experiments.py` e 3 testes de aprovação agora completam o plano de lançamento antes de pedir aprovação (a regra nova os bloqueia). Nenhum teste foi apagado ou pulado.
+- **Não verificado:** o vídeo (só o resumo do proprietário) e seus números; que o checklist reflita a realidade (é atestação); tela; `docker compose`; Windows; frontend não reexecutado; uso com dinheiro real.
+
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
 - Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD` (a senha passa por variável de ambiente); não há CLI nem tela de gerenciamento de contas.
@@ -50,7 +56,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Hash PBKDF2-HMAC-SHA256 com 260.000 rodadas, abaixo das 600.000 que a OWASP recomenda para essa combinação; o escopo pedia argon2 ou bcrypt.
 - A tabela `audit_logs` cresce a cada tentativa de login (inclusive bloqueadas); não há limpeza nem rotação.
 - Docker/compose não foram executados (sem daemon na sessão de desenvolvimento).
-- Migrações: só a `0001` existe. Mudar colunas de tabela existente exige nova migração revisada à mão; o `downgrade` da `0001` apaga todas as tabelas; instância única (sem trava de migração entre processos).
+- Migrações: existem `0001`, `0002` e `0003`. Mudar colunas de tabela existente exige nova migração revisada à mão; o `downgrade` da `0001` apaga todas as tabelas; instância única (sem trava de migração entre processos).
 
 ## Decisões técnicas
 - SQLite local por padrão (custo zero), PostgreSQL por URL.
