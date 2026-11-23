@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.entities import Agent, Approval, AuditLog, Experiment, Product, Task, TaskLog, TaskStatus
-from app.services import costs, policy
+from app.services import costs, experiments, policy
 from app.services.llm import LLMProvider, get_provider
 
 logger = logging.getLogger("steady.tasks")
@@ -154,6 +154,19 @@ def decide_approval(db: Session, approval_id: int, decision: str, note: str = ""
         raise TaskError("Aprovação não encontrada")
     if approval.status != "pending":
         raise TaskError(f"Aprovação já decidida: {approval.status}")
+
+    # Aprovar um experimento revalida o plano e a recomendação com os dados de AGORA (Fase 16b, M1).
+    # Rejeitar ou pedir alterações nunca é bloqueado. Bloqueado: a aprovação continua pendente.
+    gate_id = approval.details.get("experiment_id") if approval.action == "activate_campaign" else None
+    gate_exp = db.get(Experiment, gate_id) if gate_id else None
+    if decision == "approved" and gate_exp is not None and gate_exp.status == "pending_approval":
+        blockers = experiments.approval_blockers(db, gate_exp)
+        if blockers:
+            audit(db, "admin", "experiment_approval_blocked",
+                  {"approval_id": approval.id, "experiment_id": gate_exp.id, "reasons": blockers})
+            db.commit()
+            raise TaskError("Aprovação bloqueada: " + " | ".join(blockers))
+        audit(db, "admin", "experiment_approval_revalidated", {"approval_id": approval.id, "experiment_id": gate_exp.id})
 
     approval.status = decision
     approval.decision_note = note

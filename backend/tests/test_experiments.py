@@ -19,7 +19,19 @@ def make(client, **over) -> dict:
     return r.json()
 
 
+ANGLES = [{"angle": "dor", "hook": "h1"}, {"angle": "urgência", "hook": "h2"}, {"angle": "material", "hook": "h3"}]
+CHECKLIST = {"checkout_tested": True, "purchase_event_configured": True,
+             "refund_policy_published": True, "no_result_guarantee_claims": True}
+
+
+def ready(client, exp_id: int) -> None:
+    """Completa o plano de lançamento (atestação do proprietário) para poder pedir aprovação."""
+    r = client.put(f"/experiments/{exp_id}/launch-plan", json={"creative_angles": ANGLES, "checklist": CHECKLIST})
+    assert r.status_code == 200, r.text
+
+
 def approve(client, exp_id: int) -> None:
+    ready(client, exp_id)
     ap = client.post(f"/experiments/{exp_id}/request-approval").json()
     assert client.post(f"/approvals/{ap['id']}/decide", json={"decision": "approved"}).status_code == 200
 
@@ -75,6 +87,7 @@ def test_fees_that_eat_the_price_are_flagged(client):
 # ---- aprovação --------------------------------------------------------------------------------------
 def test_request_approval_creates_a_pending_approval_and_blocks_a_second_request(client):
     exp = make(client)
+    ready(client, exp["id"])
     ap = client.post(f"/experiments/{exp['id']}/request-approval")
     assert ap.status_code == 202
     body = ap.json()
@@ -86,6 +99,7 @@ def test_request_approval_creates_a_pending_approval_and_blocks_a_second_request
 
 def test_experiment_is_only_active_after_the_owner_approves(client):
     exp = make(client)
+    ready(client, exp["id"])
     ap = client.post(f"/experiments/{exp['id']}/request-approval").json()
     assert get(client, exp["id"])["metrics"]["action"] == "not_started"
     client.post(f"/approvals/{ap['id']}/decide", json={"decision": "approved"})
@@ -95,10 +109,12 @@ def test_experiment_is_only_active_after_the_owner_approves(client):
 
 def test_rejected_and_changes_requested_outcomes(client):
     e1 = make(client)
+    ready(client, e1["id"])
     a1 = client.post(f"/experiments/{e1['id']}/request-approval").json()
     client.post(f"/approvals/{a1['id']}/decide", json={"decision": "rejected"})
     assert get(client, e1["id"])["status"] == "rejected"
     e2 = make(client)
+    ready(client, e2["id"])
     a2 = client.post(f"/experiments/{e2['id']}/request-approval").json()
     client.post(f"/approvals/{a2['id']}/decide", json={"decision": "changes_requested"})
     assert get(client, e2["id"])["status"] == "draft"  # pode pedir de novo

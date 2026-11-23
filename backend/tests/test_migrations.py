@@ -36,7 +36,7 @@ def _version(eng) -> str | None:
 def test_upgrade_on_empty_database_creates_every_table(fresh_engine):
     run_migrations(fresh_engine)
     assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
-    assert _version(fresh_engine) == "0002"
+    assert _version(fresh_engine) == "0003"
 
 
 def test_migrated_schema_matches_the_models_exactly(fresh_engine):
@@ -56,7 +56,7 @@ def test_upgrade_twice_is_a_noop(fresh_engine):
     run_migrations(fresh_engine)
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM products")).scalar() == 1
-    assert _version(fresh_engine) == "0002"
+    assert _version(fresh_engine) == "0003"
 
 
 def test_adopts_a_v02_database_created_without_alembic_without_losing_data(fresh_engine):
@@ -80,7 +80,7 @@ def test_adopts_a_v02_database_created_without_alembic_without_losing_data(fresh
     run_migrations(fresh_engine)
 
     assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
-    assert _version(fresh_engine) == "0002"
+    assert _version(fresh_engine) == "0003"
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT name, price_cents FROM products")).one() == ("Steady Payoff", 1900)
         row = c.execute(text("SELECT amount_cents, experiment_id FROM expenses")).one()
@@ -98,6 +98,25 @@ def test_0002_downgrade_keeps_old_data_and_drops_only_experiment_stuff(fresh_eng
     assert "experiment_id" not in cols
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT amount_cents FROM expenses")).scalar() == 500
+
+
+def test_0003_downgrade_keeps_experiments_and_old_columns_and_upgrade_restores_defaults(fresh_engine):
+    run_migrations(fresh_engine)
+    with fresh_engine.begin() as c:
+        c.execute(text("INSERT INTO experiments (name, market, currency, price_cents, fee_bps, fee_fixed_cents, "
+                       "budget_cap_cents, max_spend_without_sale_cents, min_sales_to_decide, status, outcome_note, "
+                       "created_at) VALUES ('antigo','US','USD',2000,0,0,5000,2000,3,'draft','','2026-01-01 00:00:00')"))
+    downgrade(fresh_engine, "0002")
+    cols = {c["name"] for c in inspect(fresh_engine).get_columns("experiments")}
+    assert not ({"stage", "parent_experiment_id", "event_name", "event_date", "creative_angles",
+                 "launch_checklist"} & cols)
+    with fresh_engine.connect() as c:
+        assert c.execute(text("SELECT name, budget_cap_cents FROM experiments")).one() == ("antigo", 5000)
+    run_migrations(fresh_engine)
+    with fresh_engine.connect() as c:
+        row = c.execute(text("SELECT stage, event_date, creative_angles, launch_checklist FROM experiments")).one()
+    assert row[0] == "validation" and row[1] is None
+    assert str(row[2]).replace(" ", "") == "[]" and str(row[3]).replace(" ", "") == "{}"
 
 
 def test_downgrade_to_base_removes_everything_and_upgrade_recreates(fresh_engine):

@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -176,6 +176,14 @@ class Experiment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Fase 16b: etapa, evento sazonal e preparação de lançamento (atestada pelo proprietário).
+    stage: Mapped[str] = mapped_column(String(20), default="validation", server_default="validation")
+    # validation | scale (scale só nasce de um experimento validado: parent_experiment_id)
+    parent_experiment_id: Mapped[int | None] = mapped_column(ForeignKey("experiments.id"), nullable=True)
+    event_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    event_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # data (UTC) em que a demanda sazonal acaba
+    creative_angles: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")  # [{angle, hook}]
+    launch_checklist: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")  # {item: bool}
 
 
 class AuditLog(Base):
