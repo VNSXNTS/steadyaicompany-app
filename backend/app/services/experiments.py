@@ -117,11 +117,11 @@ def metrics(db: Session, exp: Experiment, today: date | None = None) -> dict:
 
 
 def recommend(exp: Experiment, spend: int, sales: int, cpa: int | None, break_even: int,
-              today: date | None = None) -> dict:
+              today: date | None = None, assume_approved: bool = False) -> dict:
     """Primeira regra que casar vence. `action`: not_started | continue | stop | validated_candidate | closed."""
     if exp.status == "closed":
         return {"action": "closed", "reason": f"Encerrado pelo proprietário ({exp.outcome})."}
-    if exp.status != "approved":
+    if exp.status != "approved" and not assume_approved:
         return {"action": "not_started", "reason": "Aguardando aprovação para começar; nenhum gasto autorizado ainda."}
     if spend >= exp.budget_cap_cents:
         return {"action": "stop", "reason": "Teto de orçamento atingido."}
@@ -206,3 +206,16 @@ def create_scale_stage(db: Session, parent: Experiment, name: str, budget_cap_ce
     db.add(child)
     db.flush()
     return child
+
+
+def approval_blockers(db: Session, exp: Experiment, today: date | None = None) -> list[str]:
+    """Revalidação no MOMENTO de aprovar, com os dados de agora (Fase 16b, M1): o plano e a recomendação como se
+    o experimento já estivesse aprovado. Se der `stop` (evento passou, teto já atingido, etc.) ou o plano deixou
+    de valer, a aprovação é recusada. Quem decide continua sendo o proprietário; isto só impede aprovar no escuro."""
+    blockers = launch_blockers(exp, today)
+    t = _totals(db, exp)
+    cpa = round(t["spend"] / t["sales"]) if t["sales"] > 0 else None
+    rec = recommend(exp, t["spend"], t["sales"], cpa, break_even_cpa_cents(exp), today, assume_approved=True)
+    if rec["action"] == "stop":
+        blockers.append(f"Recomendação atual é STOP: {rec['reason']}")
+    return blockers

@@ -56,6 +56,13 @@ orçamento de uma oferta que já provou o CPA. **Nada disso gasta ou publica alg
 - **Ângulos de criativo:** pelo menos 3, com nomes distintos e gancho preenchido (o vídeo usou dor, urgência e material;
   os nomes são livres). O texto é seu: o sistema não gera nem publica criativo.
 - **Plano congelado:** o plano só muda em rascunho; depois do pedido de aprovação o que você aprovou não muda.
+- **Revalidação ao aprovar:** na hora de aprovar, o sistema reavalia o plano e a recomendação com os dados de agora,
+  como se o experimento já estivesse aprovado. Se der `STOP` (evento já passou, teto já atingido por gasto registrado
+  etc.) ou o plano deixou de valer, a aprovação é **recusada (400)** e continua pendente, com o motivo e um registro
+  `experiment_approval_blocked` na auditoria. Você ainda pode rejeitar ou pedir alterações. Uma aprovação válida
+  registra `experiment_approval_revalidated`.
+- **Rigor dos campos:** o checklist só aceita `true`/`false` reais (nada de `"yes"` ou `1`); ângulo e gancho são
+  gravados sem espaços nas pontas, e vazio ou só espaços é recusado.
 - **Evento sazonal:** `days_to_event` nas métricas; aviso quando faltam 7 dias ou menos (**7 é uma heurística
   nossa, não um número do vídeo**); data já passada bloqueia o pedido de aprovação; depois da data, sem evidência
   suficiente, a recomendação vira `stop`. Se já houver evidência suficiente e CPA dentro do equilíbrio, a recomendação

@@ -247,3 +247,118 @@ def test_scale_money_feeds_the_global_dashboard_once(client):
     assert after["gross_revenue_cents"] - before["gross_revenue_cents"] == 2000
     m = get(client, cid)["metrics"]
     assert m["spend_cents"] == 700 and m["sales_count"] == 1  # só o que foi registrado na escala
+
+
+# ---- M1: revalidação no momento de aprovar --------------------------------------------------------------
+def _audit_actions(db):
+    from app.models.entities import AuditLog
+    db.expire_all()
+    return [a for a in db.query(AuditLog).all()]
+
+
+def _pending(client, **over):
+    exp = make(client, **over)
+    ready(client, exp["id"])
+    ap = client.post(f"/experiments/{exp['id']}/request-approval").json()
+    return exp["id"], ap["id"]
+
+
+def test_m1_event_passed_before_approval_blocks_it_and_keeps_everything_pending(client, db):
+    eid, aid = _pending(client, event_name="Prova", event_date=(today() + timedelta(days=2)).isoformat())
+    _event_passed(db, eid)
+    r = client.post(f"/approvals/{aid}/decide", json={"decision": "approved"})
+    assert r.status_code == 400 and "Aprovação bloqueada" in r.json()["detail"] and "STOP" in r.json()["detail"]
+    g = get(client, eid)
+    assert g["status"] == "pending_approval" and g["approved_at"] is None and g["metrics"]["action"] == "not_started"
+    assert next(a for a in client.get("/approvals").json() if a["id"] == aid)["status"] == "pending"
+    blocked = [a for a in _audit_actions(db) if a.action == "experiment_approval_blocked"]
+    assert len(blocked) == 1 and blocked[0].detail["experiment_id"] == eid
+    assert any("STOP" in x for x in blocked[0].detail["reasons"])
+
+
+def test_m1_blocked_approval_can_still_be_rejected_or_sent_back_for_changes(client, db):
+    for decision, status in (("rejected", "rejected"), ("changes_requested", "draft")):
+        eid, aid = _pending(client, event_name="Prova", event_date=(today() + timedelta(days=2)).isoformat())
+        _event_passed(db, eid)
+        assert client.post(f"/approvals/{aid}/decide", json={"decision": decision}).status_code == 200
+        assert get(client, eid)["status"] == status
+
+
+def test_m1_spend_already_at_the_cap_before_approval_means_stop_and_blocks(client):
+    eid, aid = _pending(client)
+    assert spend(client, eid, 5000).status_code == 201  # fato já ocorrido: aceito, mas sinalizado
+    r = client.post(f"/approvals/{aid}/decide", json={"decision": "approved"})
+    assert r.status_code == 400 and "Teto de orçamento" in r.json()["detail"]
+    assert get(client, eid)["status"] == "pending_approval"
+
+
+def test_m1_plan_no_longer_valid_at_approval_time_blocks_it(client, db):
+    eid, aid = _pending(client)
+    e = db.get(Experiment, eid)
+    e.launch_checklist = {**e.launch_checklist, "checkout_tested": False}  # adulterado fora da API
+    db.commit()
+    r = client.post(f"/approvals/{aid}/decide", json={"decision": "approved"})
+    assert r.status_code == 400 and "Checklist pendente" in r.json()["detail"]
+    assert get(client, eid)["status"] == "pending_approval"
+
+
+def test_m1_valid_approval_still_works_and_is_audited_as_revalidated(client, db):
+    eid, aid = _pending(client, event_name="Prova", event_date=(today() + timedelta(days=30)).isoformat())
+    assert client.post(f"/approvals/{aid}/decide", json={"decision": "approved"}).status_code == 200
+    g = get(client, eid)
+    assert g["status"] == "approved" and g["approved_at"]
+    ok = [a for a in _audit_actions(db) if a.action == "experiment_approval_revalidated"]
+    assert len(ok) == 1 and ok[0].detail == {"approval_id": aid, "experiment_id": eid}
+    assert not [a for a in _audit_actions(db) if a.action == "experiment_approval_blocked"]
+
+
+def test_m1_scale_approval_is_revalidated_too(client, db):
+    pid = validated(client, event_name="Prova", event_date=(today() + timedelta(days=30)).isoformat())
+    cid = client.post(f"/experiments/{pid}/scale", json=SCALE).json()["id"]
+    ready(client, cid)
+    aid = client.post(f"/experiments/{cid}/request-approval").json()["id"]
+    _event_passed(db, cid)
+    assert client.post(f"/approvals/{aid}/decide", json={"decision": "approved"}).status_code == 400
+    assert get(client, cid)["status"] == "pending_approval"
+
+
+def test_m1_unrelated_activate_campaign_approval_is_not_revalidated(client, db):
+    a = Approval(action="activate_campaign", details={})
+    db.add(a)
+    db.commit()
+    assert client.post(f"/approvals/{a.id}/decide", json={"decision": "approved"}).status_code == 200
+
+
+# ---- L1: checklist estritamente booleano ----------------------------------------------------------------
+@pytest.mark.parametrize("bad", ["yes", "true", "1", 1, 0, None, "", "sim"])
+def test_l1_checklist_rejects_anything_that_is_not_a_real_boolean(client, bad):
+    exp = make(client)
+    r = plan(client, exp["id"], checklist={**CHECKLIST, "checkout_tested": bad})
+    assert r.status_code == 422, bad
+    assert get(client, exp["id"])["launch_checklist"] == {}  # nada foi gravado
+
+
+def test_l1_real_booleans_are_accepted_and_false_still_blocks(client):
+    exp = make(client)
+    r = plan(client, exp["id"], checklist={**CHECKLIST, "refund_policy_published": False})
+    assert r.status_code == 200 and r.json()["launch_checklist"]["refund_policy_published"] is False
+    assert client.post(f"/experiments/{exp['id']}/request-approval").status_code == 409
+
+
+# ---- L2: ângulo e gancho sem espaços sobrando ------------------------------------------------------------
+@pytest.mark.parametrize("field", ["angle", "hook"])
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n "])
+def test_l2_blank_or_whitespace_only_fields_are_rejected(client, field, blank):
+    exp = make(client)
+    angles = [{"angle": "a", "hook": "x"}, {"angle": "b", "hook": "y"}, {"angle": "c", "hook": "z", field: blank}]
+    assert plan(client, exp["id"], angles=angles).status_code == 422
+    assert get(client, exp["id"])["creative_angles"] == []
+
+
+def test_l2_values_are_stored_stripped_and_padded_duplicates_count_once(client):
+    exp = make(client)
+    r = plan(client, exp["id"], angles=[{"angle": "  dor  ", "hook": "  gancho 1 "},
+                                        {"angle": "urgência", "hook": "g2"}, {"angle": "dor", "hook": "g3"}])
+    assert r.status_code == 200
+    assert r.json()["creative_angles"][0] == {"angle": "dor", "hook": "gancho 1"}
+    assert client.post(f"/experiments/{exp['id']}/request-approval").status_code == 409  # 2 distintos

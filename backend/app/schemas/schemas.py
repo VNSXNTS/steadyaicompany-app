@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
 class TaskCreate(BaseModel):
@@ -106,7 +106,9 @@ class ExpenseIn(BaseModel):
 
 
 class CreativeAngle(BaseModel):
-    """Um ângulo de criativo (ex.: dor, urgência, material). O texto é do proprietário; o sistema não gera nem publica."""
+    """Um ângulo de criativo (ex.: dor, urgência, material). O texto é do proprietário; o sistema não gera nem publica.
+    Espaços nas pontas são removidos antes de validar; vazio ou só espaços é rejeitado."""
+    model_config = ConfigDict(str_strip_whitespace=True)
     angle: str = Field(min_length=1, max_length=60)
     hook: str = Field(min_length=1, max_length=300)
 
@@ -139,7 +141,7 @@ class ExperimentIn(BaseModel):
 class LaunchPlanIn(BaseModel):
     """Preparação de lançamento, editável só em rascunho. Atestação do proprietário, não verificação automática."""
     creative_angles: list[CreativeAngle] = Field(default_factory=list, max_length=10)
-    checklist: dict[str, bool] = Field(default_factory=dict)
+    checklist: dict[str, StrictBool] = Field(default_factory=dict)  # só true/false reais (nada de "yes" ou 1)
 
 
 class ExperimentScaleIn(BaseModel):
