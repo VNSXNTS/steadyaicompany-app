@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Login } from "../pages/Login";
 import { Dashboard } from "../pages/Dashboard";
 import { Approvals } from "../pages/Approvals";
+import { Finance } from "../pages/Finance";
 import { ToastProvider } from "../lib/hooks";
 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
@@ -71,5 +72,32 @@ describe("Approvals", () => {
       expect(call).toBeTruthy();
       expect(JSON.parse(call![1].body as string)).toEqual({ decision: "approved", note: "ok pode" });
     });
+  });
+});
+
+describe("Finance: painel de consumo de IA", () => {
+  const base = { month_start: "2026-11-01", calls: 0, failed_calls: 0, prompt_tokens: 0, completion_tokens: 0, spend_usd: 0, budget_usd: 0, budget_used_percent: null, paid_providers_allowed: false, manual_ai_expenses_cents: 0, remaining_usd: null, by_provider: [], by_model: [], daily: [] };
+  const serve = (costs: unknown) => vi.stubGlobal("fetch", vi.fn((url: string) => {
+    if (url.includes("/costs")) return Promise.resolve(json(costs));
+    if (url.includes("/products")) return Promise.resolve(json([]));
+    return Promise.resolve(json(emptyDash));
+  }));
+
+  it("sem orçamento nem chamadas: restante em traço e aviso de vazio, sem inventar valores", async () => {
+    serve(base);
+    render(<ToastProvider><Finance /></ToastProvider>);
+    expect(await screen.findByText(/Nenhuma chamada de IA registrada neste mês/)).toBeInTheDocument();
+    expect(screen.getByText("Restante no mês").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText(/Provedores pagos: bloqueados/)).toBeInTheDocument();
+  });
+
+  it("mostra gasto por modelo, restante do orçamento e o detalhe por dia", async () => {
+    serve({ ...base, calls: 2, spend_usd: 0.0021, budget_usd: 5, remaining_usd: 4.9979, paid_providers_allowed: true,
+      by_model: [{ provider: "claude", model: "m-1", calls: 2, spend_usd: 0.0021 }], daily: [{ date: "2026-11-24", calls: 2, spend_usd: 0.0021 }] });
+    render(<ToastProvider><Finance /></ToastProvider>);
+    expect(await screen.findByText("claude / m-1")).toBeInTheDocument();
+    expect(screen.getByText(/permitidos dentro do orçamento/)).toBeInTheDocument();
+    expect(screen.getByText("2026-11-24")).toBeInTheDocument();
+    expect(screen.getByText("Restante no mês").nextElementSibling).not.toHaveTextContent("—");
   });
 });

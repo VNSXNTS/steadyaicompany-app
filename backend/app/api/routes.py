@@ -375,6 +375,15 @@ def provider_status():
             "paid": provider.paid}
 
 
+def _paid_state(key: str, model: str, in_price: float, out_price: float) -> str:
+    """Só diz o que está configurado, nunca o valor da chave. Não prova que o serviço responde."""
+    missing = [n for n, ok in (("chave", bool(key)), ("modelo", bool(model)), ("preços", in_price > 0 and out_price > 0))
+               if not ok]
+    base = "implementado; " + ("configuração completa, ainda não testado contra o serviço" if not missing
+                               else "faltam " + ", ".join(missing))
+    return base + "; só roda com orçamento mensal maior que zero"
+
+
 @router.get("/settings")
 def get_app_settings():
     """Configuração atual, sem segredos. Para alterar, edite as variáveis de ambiente e reinicie."""
@@ -383,6 +392,7 @@ def get_app_settings():
         "llm_provider": st.llm_provider,
         "ollama_url": st.ollama_url,
         "ollama_model": st.ollama_model,
+        "llm_fallback_provider": st.llm_fallback_provider or None,
         "max_task_attempts": st.max_task_attempts,
         "ai_monthly_budget_usd": st.ai_monthly_budget_usd,
         "database_dialect": st.database_url.split(":", 1)[0].split("+", 1)[0],
@@ -391,7 +401,9 @@ def get_app_settings():
         "integrations": {
             "telegram": "não implementado",
             "n8n": "workflow de mineração pronto para importar; webhooks do backend não implementados",
-            "claude": "não implementado",
-            "gemini": "não implementado",
+            "claude": _paid_state(st.anthropic_api_key, st.anthropic_model, st.anthropic_input_usd_per_mtok,
+                                  st.anthropic_output_usd_per_mtok),
+            "gemini": _paid_state(st.gemini_api_key, st.gemini_model, st.gemini_input_usd_per_mtok,
+                                  st.gemini_output_usd_per_mtok),
         },
     }

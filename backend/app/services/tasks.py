@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.entities import Agent, Approval, AuditLog, Experiment, Product, Task, TaskLog, TaskStatus
 from app.services import agent_tools, costs, experiments, policy
-from app.services.llm import LLMProvider, get_provider
+from app.services.llm import LLMProvider, get_fallback_provider, get_provider
 
 logger = logging.getLogger("steady.tasks")
 
@@ -111,12 +111,24 @@ def run_task(db: Session, task: Task, provider: LLMProvider | None = None) -> Ta
 
     provider = provider or get_provider()
 
-    # Nenhum provedor pago roda sem orçamento autorizado (AI_MONTHLY_BUDGET_USD) ou acima dele.
-    # A tarefa continua pendente: nada é consumido e nada fica marcado como feito.
-    if provider.paid and costs.month_spend_micro_usd(db) >= costs.budget_micro_usd():
-        raise TaskError(
-            f"Provedor pago '{provider.name}' bloqueado: orçamento mensal de IA não autorizado ou esgotado"
-        )
+    # Nenhum provedor pago roda sem orçamento autorizado (AI_MONTHLY_BUDGET_USD), sem configuração completa ou se a
+    # chamada, no pior caso, estourar o orçamento. A tarefa continua pendente: nada é consumido nem marcado como feito.
+    if provider.paid:
+        reason = provider.blocked_reason()
+        if reason is None:
+            spent, budget = costs.month_spend_micro_usd(db), costs.budget_micro_usd()
+            if spent >= budget or spent + provider.estimate_max_cost_micro_usd(task.description) > budget:
+                reason = (f"Provedor pago '{provider.name}' bloqueado: orçamento mensal de IA não autorizado, "
+                          "esgotado ou insuficiente para o pior caso desta chamada")
+        if reason is not None:
+            try:
+                fallback = get_fallback_provider()
+            except ValueError as exc:
+                raise TaskError(f"{reason}; reserva inválida: {exc}") from exc
+            if fallback is None:
+                raise TaskError(reason)
+            add_log(db, task, "fallback", f"{reason}; usando a reserva gratuita '{fallback.name}'")
+            provider = fallback
 
     max_attempts = get_settings().max_task_attempts
     task.status = TaskStatus.RUNNING

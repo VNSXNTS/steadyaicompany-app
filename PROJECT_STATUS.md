@@ -78,6 +78,14 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Profundidade máxima 5 é heurística nossa.
 - **Não verificado:** a migração `0004` em PostgreSQL e `docker compose`; frontend (sem tela de mensagens; só API); execução automática (um handoff só cria a tarefa, quem a roda é a fila normal); concorrência entre vários processos.
 
+## Testes da Fase 9 (2026-11-24)
+- Backend: `python -m pytest -q` → **236 passed, 3 skipped** (208 + 28 novos); os 3 skips são os testes de PostgreSQL já existentes. Frontend: `vitest` → **13 passed**, `tsc` e `vite build` limpos.
+- Mutação: 14 quebras deliberadas no backend (arredondamento para baixo, chave/preço ausente aceitos, HTTP 4xx aceito, corpo da resposta vazando no erro, chave não enviada, reserva `mock` aceita, pior caso sem entrada ou ignorado, `max_tokens` fixo, config ignorada, reserva não aplicada, restante inventado) e 1 no frontend (restante virando 0 em vez de traço) → os testes falharam em todas; uma escapou na 1ª rodada (termo de entrada do pior caso) e o teste foi reforçado; arquivos restaurados byte a byte.
+- **Ollama:** o protocolo foi testado contra um servidor HTTP LOCAL FALSO. **Nenhum Ollama real foi testado** (este ambiente não tem Ollama nem acesso ao registro de modelos). Para fechar: rodar `python backend/scripts/check_ollama.py` na sua máquina.
+- **Claude e Gemini:** formato de requisição/resposta (cabeçalhos, JSON, campos de tokens) foi escrito a partir da documentação conhecida e testado só contra servidores falsos; **nenhuma chamada real foi feita** (exigiria chave e gastaria dinheiro). Preços não têm padrão: você precisa informá-los.
+- Estimativa de pior caso usa 1 token a cada 3 caracteres (heurística nossa, conservadora); `AI_MAX_OUTPUT_TOKENS=1024` é padrão nosso.
+- **Não verificado:** PostgreSQL e `docker compose` nesta rodada; o painel no navegador real (só testes de componente); fallback quando o Ollama cai no meio de uma chamada (a tarefa tenta de novo e, esgotadas as tentativas, falha; a reserva só cobre bloqueio do pago).
+
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
 - Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD` (a senha passa por variável de ambiente); não há CLI nem tela de gerenciamento de contas.

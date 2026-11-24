@@ -1,5 +1,5 @@
 """Registro e monitoramento de custos de IA. Valores em milionésimos de dólar (micro-USD)."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -45,6 +45,18 @@ def summary(db: Session) -> dict:
     budget = budget_micro_usd()
     ai_expenses = db.scalar(
         select(func.coalesce(func.sum(Expense.amount_cents), 0)).where(Expense.category == "ai")) or 0
+    by_model = db.execute(
+        select(AIUsage.provider, AIUsage.model, func.count(), func.coalesce(func.sum(AIUsage.cost_micro_usd), 0))
+        .where(AIUsage.created_at >= start).group_by(AIUsage.provider, AIUsage.model)
+        .order_by(func.sum(AIUsage.cost_micro_usd).desc())
+    ).all()
+    since = datetime.now(timezone.utc) - timedelta(days=29)
+    day = func.date(AIUsage.created_at)
+    daily = db.execute(
+        select(day, func.count(), func.coalesce(func.sum(AIUsage.cost_micro_usd), 0))
+        .where(AIUsage.created_at >= since.replace(hour=0, minute=0, second=0, microsecond=0))
+        .group_by(day).order_by(day)
+    ).all()
     return {
         "month_start": start.isoformat(),
         "calls": sum(r[1] for r in rows),
@@ -55,6 +67,10 @@ def summary(db: Session) -> dict:
         "budget_usd": round(budget / MICRO, 2),
         "budget_used_percent": round(spend / budget * 100, 2) if budget > 0 else None,
         "paid_providers_allowed": budget > 0,
+        "remaining_usd": round(max(budget - spend, 0) / MICRO, 6) if budget > 0 else None,
+        "by_model": [{"provider": r[0], "model": r[1], "calls": r[2], "spend_usd": round(r[3] / MICRO, 6)}
+                     for r in by_model],
+        "daily": [{"date": str(r[0]), "calls": r[1], "spend_usd": round(r[2] / MICRO, 6)} for r in daily],
         "by_provider": [
             {"provider": r[0], "calls": r[1], "prompt_tokens": r[2], "completion_tokens": r[3],
              "spend_usd": round(r[4] / MICRO, 6)} for r in rows

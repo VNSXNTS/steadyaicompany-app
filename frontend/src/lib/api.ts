@@ -33,10 +33,13 @@ export type Costs = {
   spend_usd: number; budget_usd: number; budget_used_percent: number | null; paid_providers_allowed: boolean;
   by_provider: { provider: string; calls: number; prompt_tokens: number; completion_tokens: number; spend_usd: number }[];
   manual_ai_expenses_cents: number;
+  remaining_usd: number | null;
+  by_model: { provider: string; model: string; calls: number; spend_usd: number }[];
+  daily: { date: string; calls: number; spend_usd: number }[];
 };
 export type ProviderStatus = { provider: string; model: string; ok: boolean; detail: string; paid?: boolean };
 export type AppSettings = {
-  llm_provider: string; ollama_url: string; ollama_model: string; max_task_attempts: number;
+  llm_provider: string; llm_fallback_provider?: string | null; ollama_url: string; ollama_model: string; max_task_attempts: number;
   ai_monthly_budget_usd: number; database_dialect: string;   admin_key_configured: boolean; owner_account_configured: boolean;
   integrations: Record<string, string>;
 };

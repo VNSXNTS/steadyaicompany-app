@@ -38,7 +38,8 @@ Teste com orçamento pequeno e critérios de parada definidos antes de gastar, c
 
 ## IA e custos
 - `LLM_PROVIDER=mock` (padrão): não chama modelo; saída marcada `[MOCK]`.
-- `LLM_PROVIDER=ollama`: modelo local gratuito (`OLLAMA_URL`, `OLLAMA_MODEL`).
+- `LLM_PROVIDER=ollama`: modelo local gratuito (`OLLAMA_URL`, `OLLAMA_MODEL`). Para conferir o SEU Ollama de verdade: `python backend/scripts/check_ollama.py` (use `--no-generate` para só checar disponibilidade).
+- `LLM_PROVIDER=claude` ou `gemini` (pagos, código pronto, **ainda não testado contra o serviço real**): só rodam com `AI_MONTHLY_BUDGET_USD` maior que zero **e** chave, modelo e preços por milhão de tokens preenchidos (o sistema não assume preço nenhum). Antes de cada chamada o pior caso de custo é comparado ao orçamento restante. `LLM_FALLBACK_PROVIDER=ollama` faz o sistema usar o Ollama local quando o pago está bloqueado; sem reserva, a tarefa fica pendente (modo reduzido).
 - Provedores pagos ficam bloqueados enquanto `AI_MONTHLY_BUDGET_USD=0`.
 - Se o provedor cair, o sistema entra em modo reduzido: tarefas de IA ficam pendentes e o resto funciona.
 
@@ -54,6 +55,6 @@ Se `npm test` acusar "no tests" ou erros de carregamento, apague `node_modules` 
 Logs JSON no stdout com `request_id`; `GET /health` (público) informa banco e provedor.
 
 ## Limitações atuais
-Sem Telegram, sem Claude/Gemini, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem backup agendado (o backup é manual). Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
+Sem Telegram, Claude/Gemini só testados contra servidores falsos, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem backup agendado (o backup é manual). Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
 
 Workflows n8n: `workflows/n8n/`.
