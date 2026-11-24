@@ -11,7 +11,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 4 Backend e autenticação | 🟡 | **Em revisão (PR nº 1), não mesclada.** Feito e testado: conta do proprietário via ambiente, hash PBKDF2-HMAC-SHA256, sessão `HttpOnly` + `SameSite=Strict` de 12h, logout que invalida no servidor, bloqueio por IP, auditoria de login sem senha, `X-API-Key` desligada por padrão. **Faltam** (escopo original): CLI de criação de usuário, bloqueio por usuário, CSRF, hash argon2/bcrypt, teste manual no navegador. |
 | 5 Sistema de tarefas | ✅ | prioridades, dependências, retentativas, logs, cancelamento, auditoria |
 | 6 CEO Agent | ✅ | pipeline fixo `new_product` de 10 passos; para na aprovação |
-| 7 12 agentes | 🟡 | 13 cadastrados; hoje só chamam o provedor de IA (sem ferramentas próprias) |
+| 7 12 agentes | 🟡 | **1º lote em revisão (branch `feature/fase-07-agentes`, empilhada sobre o PR nº 4).** Ferramentas reais, sem IA, rede nem custo: **CFO** (`financial_summary`: receita líquida, lucro, margem/ROI nulos sem base), **Product Creator** (`steady_payoff_xlsx`: planilha com 112 fórmulas, dados de EXEMPLO identificados, arquivo registrado com caminho e SHA-256), **Quality Guardian** (`review_xlsx`: hash, abas, fórmulas, recálculo no LibreOffice, erros e valores conferidos contra cálculo independente em Python; sem LibreOffice o veredito é `approved_with_gaps`, nunca `approved`). Uma tarefa só usa ferramenta se pedir `input.tool`; o roteiro do CEO não mudou. **Faltam (9 agentes):** Market Hunter (exige token do Apify), Creative Director, Sales Manager, Growth Strategist, Customer Success, Social Media Manager, Competitor Analyst, Product Architect, Chief Strategy Officer; o CEO ainda não cria tarefas de ferramenta no pipeline; sem tela no painel para baixar arquivos. |
 | 8 Comunicação entre agentes | 🟡 | via dependências de tarefas; sem mensagens diretas |
 | 9 Ollama e provedores | 🟡 | Mock + Ollama implementados (Ollama **não testado contra servidor real**). Claude/Gemini não implementados. |
 | 10 Workflows n8n | 🟡 | 1 workflow de mineração importável; 12 faltam; backend sem webhooks |
@@ -50,6 +50,11 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Mudança deliberada em testes existentes (commit anterior): o helper `approve` de `test_experiments.py` e 3 testes de aprovação completam o plano de lançamento antes de pedir aprovação. Nenhum teste apagado ou pulado.
 - **Correções da revisão independente do PR nº 4:** M1 (aprovar revalida plano e recomendação com os dados de agora; `STOP` bloqueia a aprovação, que continua pendente; rejeitar e pedir alterações nunca são bloqueados; auditoria `experiment_approval_blocked` / `experiment_approval_revalidated`), L1 (checklist só aceita `true`/`false` reais), L2 (ângulo e gancho com `strip`; vazio ou só espaços é rejeitado).
 - **Não verificado:** o vídeo (só o resumo do proprietário) e seus números; que o checklist reflita a realidade (é atestação); tela; `docker compose`; Windows; frontend; concorrência na regra de uma escala aberta (sem trava no banco, L3 da revisão); data do evento em UTC (L5 da revisão); uso com dinheiro real; mergeabilidade da pilha contra `develop`.
+
+## Testes da Fase 7 (1º lote, 2026-11-24, Linux, Python 3.13, LibreOffice presente)
+- Backend: `python -m pytest -q` → **155 passed, 3 skipped** (143 anteriores + 12 novos); os 3 skips são os testes de PostgreSQL já existentes (sem `TEST_DATABASE_URL` nesta rodada). 12 testes novos em `test_agent_tools.py`, sem skips.
+- Mutação: 8 quebras deliberadas (revisor ignora hash, ignora erros de fórmula, não compara valores, lacuna vira "aprovado", sem checagem de caminho, ferramenta de outro agente, margem 0 inventada, fórmula de juros errada) → os testes falharam em todas; arquivos restaurados.
+- **Não verificado:** abrir a planilha no Excel de verdade (só LibreOffice); frontend não foi alterado nem reexecutado; PostgreSQL nesta rodada; `docker compose`.
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
