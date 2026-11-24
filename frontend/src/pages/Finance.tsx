@@ -45,11 +45,26 @@ export function Finance() {
         {c.error && <ErrorNote message={c.error} onRetry={c.reload} />}
         {c.data && (
           <>
-            <dl className="grid grid-cols-2 md:grid-cols-4 gap-6 m-0">
-              {[["Chamadas no mês", int(c.data.calls)], ["Chamadas com falha", int(c.data.failed_calls)], ["Gasto no mês", usdFromDollars(c.data.spend_usd)], ["Orçamento mensal", usdFromDollars(c.data.budget_usd)]].map(([k, v]) => (
+            <dl className="grid grid-cols-2 md:grid-cols-5 gap-6 m-0">
+              {[["Chamadas no mês", int(c.data.calls)], ["Chamadas com falha", int(c.data.failed_calls)], ["Gasto no mês", usdFromDollars(c.data.spend_usd)], ["Orçamento mensal", usdFromDollars(c.data.budget_usd)], ["Restante no mês", c.data.remaining_usd === null ? "—" : usdFromDollars(c.data.remaining_usd)]].map(([k, v]) => (
                 <div key={k}><dt className="text-muted text-sm">{k}</dt><dd className="num display text-2xl m-0">{v}</dd></div>))}
             </dl>
             <p className="text-muted text-sm">Tokens: {int(c.data.prompt_tokens)} de entrada, {int(c.data.completion_tokens)} de saída. Provedores pagos: {c.data.paid_providers_allowed ? "permitidos dentro do orçamento" : "bloqueados"}.</p>
+            {c.data.by_model.length === 0 ? (
+              <p className="text-muted text-sm">Nenhuma chamada de IA registrada neste mês.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-muted text-left"><th className="font-normal py-1">Provedor / modelo</th><th className="font-normal text-right">Chamadas</th><th className="font-normal text-right">Gasto</th></tr></thead>
+                <tbody>{c.data.by_model.map((m) => (
+                  <tr key={`${m.provider}/${m.model}`}><td className="py-1">{m.provider} / {m.model}</td><td className="num text-right">{int(m.calls)}</td><td className="num text-right">{usdFromDollars(m.spend_usd)}</td></tr>))}</tbody>
+              </table>
+            )}
+            {c.data.daily.length > 0 && (
+              <details className="text-sm"><summary className="cursor-pointer text-muted">Por dia (últimos 30 dias)</summary>
+                <table className="w-full mt-2"><tbody>{c.data.daily.map((x) => (
+                  <tr key={x.date}><td className="py-0.5">{x.date}</td><td className="num text-right">{int(x.calls)} chamadas</td><td className="num text-right">{usdFromDollars(x.spend_usd)}</td></tr>))}</tbody></table>
+              </details>
+            )}
           </>
         )}
       </Section>

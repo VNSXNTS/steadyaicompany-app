@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+### Fase 9 — Provedores de IA, guarda de orçamento e painel de consumo
+- `ClaudeProvider` e `GeminiProvider` (pagos). Só rodam com chave, modelo e preços por milhão de tokens informados; custo = tokens × preço, arredondado para cima; chave só em cabeçalho, nunca em URL, log, erro ou tarefa.
+- Guarda de orçamento reforçada: além de "gasto >= orçamento", bloqueia a chamada cujo PIOR caso (prompt estimado + `AI_MAX_OUTPUT_TOKENS`) estouraria o orçamento. Provedor mal configurado também fica bloqueado, sem consumir tentativas.
+- `LLM_FALLBACK_PROVIDER=ollama`: reserva gratuita quando o pago está bloqueado (registrada no log da tarefa); `mock` e provedores pagos são recusados como reserva.
+- `GET /costs` ganhou `remaining_usd`, `by_model` e `daily`; tela Financeiro mostra restante, gasto por modelo e por dia. `GET /settings` mostra o estado de Claude/Gemini sem expor chaves.
+- `backend/scripts/check_ollama.py` para você conferir o Ollama real. `.env.example` com os novos campos vazios (leitura tolerante a vazio).
+- Testes: +28 backend (`test_ai_providers.py`), +2 frontend.
 ### Fase 8 — Comunicação entre agentes
 - Migração `0004` (tabela `agent_messages`), `app/services/communication.py` e endpoints `POST /agent-messages`, `POST /handoffs`, `GET /agent-messages` (filtros `agent`, `task_id`, `kind`).
 - Handoff cria uma tarefa normal para o agente de destino, dependente da tarefa de origem (que precisa estar concluída), com log nas duas tarefas e entrada na auditoria. Não concede `action` (nenhum atalho em torno da política de aprovação).
