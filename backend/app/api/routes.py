@@ -7,7 +7,7 @@ from app.core.security import require_admin
 from app.database.session import get_db
 from app.models.entities import Agent, Approval, Expense, Experiment, Product, Sale, Task, TaskLog
 from app.schemas import schemas as s
-from app.services import ceo, costs, experiments, metrics
+from app.services import ceo, communication, costs, experiments, metrics
 from app.services.llm import get_provider
 from app.services.tasks import TaskError, audit, create_task, decide_approval, run_task
 
@@ -35,6 +35,31 @@ def set_agent_status(key: str, action: str, db: Session = Depends(get_db)):
     audit(db, "admin", f"agent_{action}", {"agent": key})
     db.commit()
     return agent
+
+
+# ---- comunicação entre agentes ----
+@router.post("/agent-messages", response_model=s.MessageOut, status_code=201)
+def post_message(body: s.MessageIn, db: Session = Depends(get_db)):
+    try:
+        return communication.send_message(db, body.from_agent, body.to_agent, body.subject, body.body,
+                                          task_id=body.task_id, parent_id=body.parent_id, actor="admin")
+    except TaskError as e:
+        _bad(e)
+
+
+@router.post("/handoffs", response_model=s.MessageOut, status_code=201)
+def post_handoff(body: s.HandoffIn, db: Session = Depends(get_db)):
+    try:
+        return communication.handoff(db, body.from_task_id, body.to_agent, body.description, subject=body.subject,
+                                     input=body.input, priority=body.priority, actor="admin")
+    except TaskError as e:
+        _bad(e)
+
+
+@router.get("/agent-messages", response_model=list[s.MessageOut])
+def list_agent_messages(agent: str | None = None, task_id: int | None = None, kind: str | None = None,
+                        limit: int = 100, db: Session = Depends(get_db)):
+    return communication.list_messages(db, agent=agent, task_id=task_id, kind=kind, limit=limit)
 
 
 # ---- tarefas ----

@@ -193,3 +193,36 @@ class ExperimentSaleIn(BaseModel):
 class ExperimentCloseIn(BaseModel):
     outcome: str = Field(pattern="^(killed|validated)$")
     note: str = ""
+
+
+class MessageIn(BaseModel):
+    from_agent: str
+    to_agent: str
+    subject: str = Field(min_length=1, max_length=150)
+    body: str = Field(default="", max_length=4000)
+    task_id: int | None = None
+    parent_id: int | None = None
+
+
+class HandoffIn(BaseModel):
+    from_task_id: int
+    to_agent: str
+    description: str = Field(min_length=3, max_length=4000)
+    subject: str = Field(default="", max_length=150)
+    input: dict = {}
+    priority: int = Field(default=3, ge=1, le=5)
+
+
+class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+    kind: str
+    from_agent: str
+    to_agent: str
+    subject: str
+    body: str
+    task_id: int | None
+    handoff_task_id: int | None
+    parent_id: int | None
+    hop: int
