@@ -72,6 +72,12 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Limites (`RISKY_PHRASES`, 90 caracteres de título) são heurísticas nossas, não regras de plataforma nem revisão jurídica.
 - **Não verificado:** frontend, PostgreSQL e `docker compose` nesta rodada; uso pelo painel (só API). Market Hunter segue sem ferramenta (exige token do Apify e pode gerar custo).
 
+## Testes da Fase 8 (2026-11-24)
+- Backend: `python -m pytest -q` → **208 passed, 3 skipped** (189 + 19 novos); os 3 skips são os testes de PostgreSQL já existentes.
+- Mutação: 9 quebras deliberadas (sem trava de ciclo, sem profundidade em handoff e em respostas, origem não concluída aceita, auto-envio aceito, cadeia forjável pelo chamador, handoff sem dependência da origem, sem auditoria, sem limite de tamanho) → os testes falharam em todas; arquivo restaurado byte a byte.
+- Profundidade máxima 5 é heurística nossa.
+- **Não verificado:** a migração `0004` em PostgreSQL e `docker compose`; frontend (sem tela de mensagens; só API); execução automática (um handoff só cria a tarefa, quem a roda é a fila normal); concorrência entre vários processos.
+
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
 - Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD` (a senha passa por variável de ambiente); não há CLI nem tela de gerenciamento de contas.

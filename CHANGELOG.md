@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+### Fase 8 — Comunicação entre agentes
+- Migração `0004` (tabela `agent_messages`), `app/services/communication.py` e endpoints `POST /agent-messages`, `POST /handoffs`, `GET /agent-messages` (filtros `agent`, `task_id`, `kind`).
+- Handoff cria uma tarefa normal para o agente de destino, dependente da tarefa de origem (que precisa estar concluída), com log nas duas tarefas e entrada na auditoria. Não concede `action` (nenhum atalho em torno da política de aprovação).
+- Travas contra loop: nunca para si mesmo, nunca para agente já presente na cadeia (A→B→A), profundidade máxima 5; a cadeia fica em `input.handoff` e o sistema a sobrescreve (não dá para forjar).
+- Testes: +19 em `test_communication.py`, +1 de migração.
 ### Fase 7 — 3º lote de ferramentas
 - Creative Director `creative_check`, Growth Strategist `growth_math`, Customer Success `refund_followup`, Social Media Manager `content_calendar`, Product Architect `product_spec_check` em `agent_tools.py`. Sem IA, rede ou custo; nada é publicado, enviado ou gasto. Cada uma declara o que não sabe.
 - Testes: +11 em `test_agent_tools_3.py`.

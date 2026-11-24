@@ -186,6 +186,24 @@ class Experiment(Base):
     launch_checklist: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")  # {item: bool}
 
 
+class AgentMessage(Base):
+    """Mensagem ou handoff entre agentes. Só se acrescenta; nunca é editada. `hop` conta a profundidade da cadeia."""
+
+    __tablename__ = "agent_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    kind: Mapped[str] = mapped_column(String(20))  # message | handoff
+    from_agent: Mapped[str] = mapped_column(ForeignKey("agents.key"), index=True)
+    to_agent: Mapped[str] = mapped_column(ForeignKey("agents.key"), index=True)
+    subject: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(Text, default="")
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True, index=True)  # tarefa de origem
+    handoff_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)  # tarefa criada
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_messages.id"), nullable=True)
+    hop: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
