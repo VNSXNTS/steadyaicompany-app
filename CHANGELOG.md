@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+### Correções da revisão do PR nº 1
+- **M3** Senhas com **Argon2id** (`argon2-cffi`). Hashes PBKDF2 antigos continuam válidos e são regravados no próximo login correto; hashes Argon2 com parâmetros desatualizados também. Nova dependência: `argon2-cffi`.
+- **B5** Senha com no máximo 128 caracteres: acima disso é recusada (422), nunca truncada; verificações de hash simultâneas limitadas a 4 para não esgotar memória.
+- **M1** Bloqueio de login por conta (temporário e progressivo, 30 s até 15 min, vale de qualquer IP) e por IP (20 falhas/15 min). Tentativas contadas antes da verificação, com atualização atômica. Nova tabela `account_login_attempts` (criada pelo `create_all`). `X-Forwarded-For` só é lido quando o proxy está em `TRUSTED_PROXIES`.
+- **M2** `APP_ENV=production` exige `AUTH_COOKIE_SECURE=true`; sem isso o servidor não inicia, com mensagem clara. Desenvolvimento em HTTP local continua funcionando.
+- **B1** `/docs`, `/redoc` e `/openapi.json` desligados em produção; ligados em desenvolvimento.
+- **B2** CSRF: cabeçalho `X-CSRF-Token` (derivado da sessão) obrigatório em requisições que alteram dados com cookie, mais checagem de `Origin` (`ALLOWED_ORIGINS`); login e logout incluídos. Novo `GET /auth/csrf`; o login devolve `csrf_token`. O painel envia o token automaticamente (guardado só em memória).
+- `create_app()` em `app/main.py`; novas variáveis em `.env.example` e `docker-compose.yml`: `APP_ENV`, `TRUSTED_PROXIES`, `ALLOWED_ORIGINS`.
+- Testes: backend 98 (eram 56; +42 em `test_auth_hardening.py`), frontend 13 (eram 11). 5 testes antigos adaptados ao novo comportamento, nenhum removido.
+- Pendências futuras (não feitas): CLI segura da conta proprietária, limpeza de sessões expiradas, retenção da auditoria, teste manual em navegador real.
+
+### Autenticação (PR nº 1, versão original)
 - Autenticação real do proprietário: contas persistidas, senha com hash PBKDF2-HMAC-SHA256, sessão em cookie HttpOnly com validade de 12 horas, logout e bloqueio de login após cinco falhas em 15 minutos.
 - Login do painel por e-mail e senha; a sessão não é mais armazenada no `sessionStorage`.
 - `OWNER_EMAIL` e `OWNER_PASSWORD` inicializam a conta proprietária; `ADMIN_API_KEY` continua disponível para clientes de API legados.

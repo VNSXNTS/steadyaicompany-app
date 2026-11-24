@@ -61,6 +61,17 @@ class LoginAttempt(Base):
     blocked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class AccountLoginAttempt(Base):
+    """Tentativas de login por conta (hash do e-mail normalizado), com bloqueio temporário progressivo."""
+
+    __tablename__ = "account_login_attempts"
+
+    account_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[int] = mapped_column(Integer)  # horário da última tentativa
+    blocked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class Task(Base):
     __tablename__ = "tasks"
     __table_args__ = (Index("ix_tasks_status_priority", "status", "priority"),)

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ApiError, request } from "../lib/api";
+import { ApiError, request, setCsrfToken } from "../lib/api";
 import { Field } from "../components/ui";
 
 export function Login({ onDone }: { onDone: () => void }) {
@@ -13,10 +13,11 @@ export function Login({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await request<{ ok: boolean }>("/auth/login", {
+      const res = await request<{ ok: boolean; csrf_token?: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      setCsrfToken(res.csrf_token ?? null);
       onDone();
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401 ? "E-mail ou senha inválidos." : (err as Error).message);

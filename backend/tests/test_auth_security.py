@@ -54,7 +54,7 @@ def test_password_is_stored_only_as_hash(db):
     user = db.query(User).one()
     assert user.password_hash != PASSWORD
     assert PASSWORD not in user.password_hash
-    assert user.password_hash.startswith("pbkdf2_sha256$")
+    assert user.password_hash.startswith("$argon2id$")
     # a senha em texto puro não pode estar em NENHUMA coluna de NENHUMA tabela
     insp = inspect(engine)
     with engine.connect() as conn:
@@ -89,7 +89,7 @@ def test_login_is_blocked_after_max_failures_even_with_correct_password():
 def test_login_is_audited_without_password(db):
     with TestClient(app) as c:
         assert _login(c, WRONG).status_code == 401
-        assert _login(c, PASSWORD).status_code == 200
+        c.headers["X-CSRF-Token"] = _login(c, PASSWORD).json()["csrf_token"]
         c.post("/auth/logout")
         # usuário digitando a senha no campo de e-mail: também não pode ir para a auditoria
         _login(c, email="digitei-a-senha-aqui-XYZ789@example.com")
@@ -118,7 +118,7 @@ def test_health_stays_public():
 # 6. logout ---------------------------------------------------------------------------------------
 def test_logout_invalidates_the_session_token_server_side(db):
     with TestClient(app) as c:
-        _login(c)
+        c.headers["X-CSRF-Token"] = _login(c).json()["csrf_token"]
         token = c.cookies.get(SESSION_COOKIE)
         assert token and c.get("/auth/me").status_code == 200
         assert db.query(AuthSession).count() == 1
@@ -179,7 +179,7 @@ def test_login_password_never_appears_in_any_log(app_logs, caplog):
     caplog.set_level(logging.DEBUG)
     with TestClient(app) as c:
         _login(c, WRONG)                                  # falha
-        _login(c, PASSWORD)                               # sucesso
+        c.headers["X-CSRF-Token"] = _login(c, PASSWORD).json()["csrf_token"]  # sucesso
         c.post("/auth/logout")
         _login(c, "x" * 2000)                             # 422 (senha grande demais)
         for _ in range(LOGIN_MAX_FAILURES):

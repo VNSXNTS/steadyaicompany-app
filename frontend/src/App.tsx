@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "./lib/api";
+import { api, setCsrfToken } from "./lib/api";
 import { ToastProvider, useRoute } from "./lib/hooks";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
@@ -31,13 +31,15 @@ export function App() {
     const out = () => setAuthed(false);
     window.addEventListener("steady:unauthorized", out);
     api.get<{ email: string }>("/auth/me")
-      .then(() => setAuthed(true))
+      .then(() => api.get<{ csrf_token: string }>("/auth/csrf"))
+      .then((r) => { setCsrfToken(r.csrf_token); setAuthed(true); })
       .catch(() => setAuthed(false))
       .finally(() => setChecking(false));
     return () => window.removeEventListener("steady:unauthorized", out);
   }, []);
   async function logout() {
     await api.post<{ ok: boolean }>("/auth/logout");
+    setCsrfToken(null);
     setAuthed(false);
   }
   return (

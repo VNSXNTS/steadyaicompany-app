@@ -51,6 +51,16 @@ export class ApiError extends Error {
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
+// Token CSRF da sessão atual. Fica só em memória (nada em localStorage) e é pedido de novo ao recarregar.
+let csrfToken: string | null = null;
+export function setCsrfToken(token: string | null) {
+  csrfToken = token;
+}
+export function getCsrfToken() {
+  return csrfToken;
+}
+const SAFE_METHODS = ["GET", "HEAD", "OPTIONS"];
+
 export function describeDetail(detail: unknown): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -66,11 +76,13 @@ export function describeDetail(detail: unknown): string {
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
+  const method = (init.method ?? "GET").toUpperCase();
+  const csrf: Record<string, string> = !SAFE_METHODS.includes(method) && csrfToken ? { "X-CSRF-Token": csrfToken } : {};
   try {
     res = await fetch(BASE + path, {
       ...init,
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+      headers: { "Content-Type": "application/json", ...csrf, ...(init.headers ?? {}) },
     });
   } catch {
     throw new ApiError(0, "Não foi possível falar com o servidor. Confira se o backend está rodando.");
