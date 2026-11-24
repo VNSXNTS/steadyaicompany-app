@@ -6,7 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 // A navegação do painel usa #/rotas, então não conflita com os caminhos da API.
 const target = process.env.VITE_PROXY_TARGET ?? "http://localhost:8000";
 const apiPaths =
-  "^/(agents|agents-stats|tasks|ceo|approvals|products|sales|expenses|dashboard|costs|providers|settings|health)(/|$)";
+  "^/(auth|agents|agents-stats|tasks|ceo|approvals|products|sales|expenses|dashboard|costs|providers|settings|health)(/|$)";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

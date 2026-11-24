@@ -1,5 +1,4 @@
-// Cliente da API do backend. A chave de acesso fica só na sessionStorage desta aba
-// (apagada ao fechar). Nenhuma chave de provedor de IA passa pelo navegador.
+// Cliente da API do backend. A sessão de autenticação é um cookie HttpOnly.
 
 export type Agent = {
   key: string; name: string; department: string; role: string; status: string;
@@ -38,15 +37,8 @@ export type Costs = {
 export type ProviderStatus = { provider: string; model: string; ok: boolean; detail: string; paid?: boolean };
 export type AppSettings = {
   llm_provider: string; ollama_url: string; ollama_model: string; max_task_attempts: number;
-  ai_monthly_budget_usd: number; database_dialect: string; admin_key_configured: boolean;
+  ai_monthly_budget_usd: number; database_dialect: string;   admin_key_configured: boolean; owner_account_configured: boolean;
   integrations: Record<string, string>;
-};
-
-const KEY = "steady_admin_key";
-export const auth = {
-  get: () => sessionStorage.getItem(KEY) ?? "",
-  set: (k: string) => sessionStorage.setItem(KEY, k),
-  clear: () => sessionStorage.removeItem(KEY),
 };
 
 export class ApiError extends Error {
@@ -58,6 +50,16 @@ export class ApiError extends Error {
 }
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+
+// Token CSRF da sessão atual. Fica só em memória (nada em localStorage) e é pedido de novo ao recarregar.
+let csrfToken: string | null = null;
+export function setCsrfToken(token: string | null) {
+  csrfToken = token;
+}
+export function getCsrfToken() {
+  return csrfToken;
+}
+const SAFE_METHODS = ["GET", "HEAD", "OPTIONS"];
 
 export function describeDetail(detail: unknown): string {
   if (typeof detail === "string") return detail;
@@ -72,12 +74,15 @@ export function describeDetail(detail: unknown): string {
   return "Erro inesperado";
 }
 
-export async function request<T>(path: string, init: RequestInit = {}, key: string = auth.get()): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
+  const method = (init.method ?? "GET").toUpperCase();
+  const csrf: Record<string, string> = !SAFE_METHODS.includes(method) && csrfToken ? { "X-CSRF-Token": csrfToken } : {};
   try {
     res = await fetch(BASE + path, {
       ...init,
-      headers: { "Content-Type": "application/json", "X-API-Key": key, ...(init.headers ?? {}) },
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...csrf, ...(init.headers ?? {}) },
     });
   } catch {
     throw new ApiError(0, "Não foi possível falar com o servidor. Confira se o backend está rodando.");

@@ -17,6 +17,8 @@ def test_endpoints_require_key(client):
 
 def test_fail_closed_without_server_key(client, monkeypatch):
     monkeypatch.setenv("ADMIN_API_KEY", "")
+    monkeypatch.setenv("OWNER_EMAIL", "")
+    monkeypatch.setenv("OWNER_PASSWORD", "")
     assert client.get("/agents").status_code == 503
 
 

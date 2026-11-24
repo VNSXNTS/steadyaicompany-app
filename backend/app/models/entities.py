@@ -33,6 +33,45 @@ class Agent(Base):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[int] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    ip_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[int] = mapped_column(Integer)
+    blocked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class AccountLoginAttempt(Base):
+    """Tentativas de login por conta (hash do e-mail normalizado), com bloqueio temporário progressivo."""
+
+    __tablename__ = "account_login_attempts"
+
+    account_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[int] = mapped_column(Integer)  # horário da última tentativa
+    blocked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class Task(Base):
     __tablename__ = "tasks"
     __table_args__ = (Index("ix_tasks_status_priority", "status", "priority"),)

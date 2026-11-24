@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { auth } from "./lib/api";
+import { api, setCsrfToken } from "./lib/api";
 import { ToastProvider, useRoute } from "./lib/hooks";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
@@ -25,16 +25,29 @@ function Routes() {
 }
 
 export function App() {
-  const [authed, setAuthed] = useState(() => auth.get() !== "");
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
   useEffect(() => {
-    const out = () => { auth.clear(); setAuthed(false); };
+    const out = () => setAuthed(false);
     window.addEventListener("steady:unauthorized", out);
+    api.get<{ email: string }>("/auth/me")
+      .then(() => api.get<{ csrf_token: string }>("/auth/csrf"))
+      .then((r) => { setCsrfToken(r.csrf_token); setAuthed(true); })
+      .catch(() => setAuthed(false))
+      .finally(() => setChecking(false));
     return () => window.removeEventListener("steady:unauthorized", out);
   }, []);
+  async function logout() {
+    await api.post<{ ok: boolean }>("/auth/logout");
+    setCsrfToken(null);
+    setAuthed(false);
+  }
   return (
     <ToastProvider>
-      {authed ? (
-        <Layout onLogout={() => { auth.clear(); setAuthed(false); }}>
+      {checking ? (
+        <main className="min-h-screen grid place-items-center text-muted">Verificando sessão…</main>
+      ) : authed ? (
+        <Layout onLogout={logout}>
           <Routes />
         </Layout>
       ) : (

@@ -237,6 +237,7 @@ def get_app_settings():
         "ai_monthly_budget_usd": st.ai_monthly_budget_usd,
         "database_dialect": st.database_url.split(":", 1)[0].split("+", 1)[0],
         "admin_key_configured": bool(st.admin_api_key),
+        "owner_account_configured": bool(st.owner_email and st.owner_password),
         "integrations": {
             "telegram": "não implementado",
             "n8n": "workflow de mineração pronto para importar; webhooks do backend não implementados",

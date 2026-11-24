@@ -106,6 +106,7 @@ def test_provider_status_unknown_provider(client, monkeypatch):
 def test_settings_hide_secrets(client):
     d = client.get("/settings").json()
     assert d["admin_key_configured"] is True
+    assert d["owner_account_configured"] is True
     assert "test-key" not in str(d)
     assert d["database_dialect"] == "sqlite"
     assert d["integrations"]["telegram"] == "não implementado"
