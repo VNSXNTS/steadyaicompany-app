@@ -5,6 +5,8 @@
 - quality_guardian / review_xlsx: confere a planilha de verdade (arquivo, hash, fórmulas, erros, valores esperados).
 - strategy / experiment_review, sales_manager / sales_report, competitor_analyst / offer_comparison (2º lote):
   só leem dados registrados ou informados na tarefa; dizem o que NÃO sabem.
+- 3º lote: creative_director / creative_check, growth_strategist / growth_math, customer_success / refund_followup,
+  social_media / content_calendar, product_architect / product_spec_check (também por regras, sem IA).
 
 Uma tarefa só usa ferramenta se pedir explicitamente (`input.tool`); o roteiro do CEO continua como antes.
 Todo arquivo gerado fica em ARTIFACTS_DIR e é rastreável pela saída da tarefa (caminho relativo, bytes, sha256).
@@ -363,6 +365,119 @@ def offer_comparison(db: Session, task: Task) -> dict:
             "notes": notes, "files": []}
 
 
+# ------------------------------------------------------------------------------ 3º lote
+# Frases que prometem resultado garantido ou simulam prova social. Lista NOSSA (heurística), não é revisão jurídica.
+RISKY_PHRASES = ("guaranteed", "guarantee you", "100% sure", "risk-free", "get out of debt in", "overnight",
+                 "no effort", "while you sleep", "as seen on", "doctors hate", "testimonial", "real customer")
+HEADLINE_MAX = 90  # heurística nossa para título de anúncio
+
+
+def _text_field(task: Task, name: str) -> str:
+    v = (task.input or {}).get(name)
+    if not isinstance(v, str) or not v.strip():
+        raise ToolError(f"Informe input.{name} (texto)")
+    return v.strip()
+
+
+def creative_check(db: Session, task: Task) -> dict:
+    """Creative Director: confere um texto de criativo informado contra regras de honestidade. Não escreve o texto."""
+    headline = _text_field(task, "headline")
+    body = str((task.input or {}).get("body") or "").strip()
+    text = f"{headline} {body}".lower()
+    findings = [f"Frase de risco encontrada: {ph!r} (promessa garantida ou prova social suspeita)"
+                for ph in RISKY_PHRASES if ph in text]
+    if len(headline) > HEADLINE_MAX:
+        findings.append(f"Título com {len(headline)} caracteres (limite sugerido: {HEADLINE_MAX})")
+    if body and "results vary" not in text and "not typical" not in text:
+        findings.append("Sem aviso de que os resultados variam; inclua se o texto fala de resultado financeiro")
+    return {"result": {"approved": not findings, "findings": findings, "headline_length": len(headline)},
+            "notes": ["Verificação por lista de frases nossa; não substitui revisão das regras da plataforma de "
+                      "anúncios nem revisão jurídica. Publicar anúncio exige aprovação do proprietário."],
+            "files": []}
+
+
+def growth_math(db: Session, task: Task) -> dict:
+    """Growth Strategist: ponto de equilíbrio por venda e vendas necessárias para um orçamento de teste. Sem previsão."""
+    i = task.input or {}
+    for k in ("price_cents", "test_budget_cents"):
+        if isinstance(i.get(k), bool) or not isinstance(i.get(k), int) or i[k] <= 0:
+            raise ToolError(f"Informe input.{k}: inteiro em centavos, maior que zero")
+    fee_pct = i.get("fee_percent", 0)
+    fee_fixed = i.get("fee_fixed_cents", 0)
+    if isinstance(fee_pct, bool) or not isinstance(fee_pct, (int, float)) or not 0 <= fee_pct < 100:
+        raise ToolError("fee_percent deve estar entre 0 e 100")
+    if isinstance(fee_fixed, bool) or not isinstance(fee_fixed, int) or fee_fixed < 0:
+        raise ToolError("fee_fixed_cents deve ser inteiro >= 0")
+    net = i["price_cents"] - round(i["price_cents"] * fee_pct / 100) - fee_fixed
+    if net <= 0:
+        raise ToolError("Preço não cobre as taxas informadas: receita líquida por venda <= 0")
+    sales_to_recover = -(-i["test_budget_cents"] // net)  # teto
+    return {"result": {"net_per_sale_cents": net, "break_even_cpa_cents": net,
+                       "sales_to_recover_budget": sales_to_recover,
+                       "test_budget_cents": i["test_budget_cents"]},
+            "notes": ["Conta direta sobre os números informados; ignora reembolsos e não prevê conversão nem vendas. "
+                      "Gastar o orçamento exige aprovação do proprietário."], "files": []}
+
+
+def refund_followup(db: Session, task: Task) -> dict:
+    """Customer Success: lista vendas com reembolso para acompanhamento. O sistema não guarda dados do cliente."""
+    rows = db.execute(select(Sale.id, Sale.product_id, Sale.gross_cents, Sale.refunded_cents)
+                      .where(Sale.refunded_cents > 0).order_by(Sale.id)).all()
+    total_sales = db.scalar(select(func.count(Sale.id))) or 0
+    items = [{"sale_id": r[0], "product_id": r[1], "gross_cents": r[2], "refunded_cents": r[3],
+              "full_refund": r[3] >= r[2]} for r in rows]
+    return {"result": {"refunded_sales": items, "refunded_count": len(items), "total_sales": int(total_sales),
+                       "refund_count_rate_percent": round(len(items) / total_sales * 100, 2) if total_sales else None},
+            "notes": ["Motivo do reembolso e dados do cliente NÃO são registrados; não dá para analisar causas. "
+                      "Mensagens sensíveis ao cliente exigem aprovação do proprietário."], "files": []}
+
+
+def content_calendar(db: Session, task: Task) -> dict:
+    """Social Media Manager: monta uma grade de rascunhos a partir dos temas informados. Nada é publicado."""
+    from datetime import date, timedelta
+    i = task.input or {}
+    topics = i.get("topics")
+    if not isinstance(topics, list) or not topics or any(not isinstance(t, str) or not t.strip() for t in topics):
+        raise ToolError("Informe input.topics: lista de textos não vazios")
+    try:
+        start = date.fromisoformat(str(i.get("start_date")))
+    except ValueError:
+        raise ToolError("Informe input.start_date no formato AAAA-MM-DD") from None
+    per_week = i.get("posts_per_week", 3)
+    if isinstance(per_week, bool) or not isinstance(per_week, int) or not 1 <= per_week <= 7:
+        raise ToolError("posts_per_week deve ser inteiro de 1 a 7")
+    days = [round(k * 7 / per_week) for k in range(per_week)]
+    posts = []
+    for n, topic in enumerate(topics):
+        week, slot = divmod(n, per_week)
+        posts.append({"date": (start + timedelta(days=week * 7 + days[slot])).isoformat(),
+                      "topic": topic.strip(), "status": "draft"})
+    return {"result": {"posts": posts, "count": len(posts)},
+            "notes": ["Só datas e temas; o texto de cada post não foi escrito. Nada foi publicado e "
+                      "publicar exige aprovação do proprietário."], "files": []}
+
+
+SPEC_FIELDS = ("name", "promise", "audience", "refund_policy")
+
+
+def product_spec_check(db: Session, task: Task) -> dict:
+    """Product Architect: confere se a especificação de produto informada está completa e coerente."""
+    spec = (task.input or {}).get("spec")
+    if not isinstance(spec, dict):
+        raise ToolError("Informe input.spec: objeto com name, promise, audience, price_cents, deliverables, refund_policy")
+    missing = [f for f in SPEC_FIELDS if not str(spec.get(f, "")).strip()]
+    issues = [f"Campo ausente ou vazio: {f}" for f in missing]
+    price = spec.get("price_cents")
+    if isinstance(price, bool) or not isinstance(price, int) or price <= 0:
+        issues.append("price_cents deve ser inteiro em centavos, maior que zero")
+    deliverables = spec.get("deliverables")
+    if not isinstance(deliverables, list) or not deliverables or any(not str(d).strip() for d in deliverables):
+        issues.append("deliverables deve listar ao menos 1 entregável não vazio")
+    return {"result": {"complete": not issues, "issues": issues},
+            "notes": ["Confere só a completude da especificação; não avalia se o produto vende nem se o preço é bom."],
+            "files": []}
+
+
 # ----------------------------------------------------------------------------------- despacho
 TOOLS = {
     ("cfo", "financial_summary"): financial_summary,
@@ -371,6 +486,11 @@ TOOLS = {
     ("strategy", "experiment_review"): experiment_review,
     ("sales_manager", "sales_report"): sales_report,
     ("competitor_analyst", "offer_comparison"): offer_comparison,
+    ("creative_director", "creative_check"): creative_check,
+    ("growth_strategist", "growth_math"): growth_math,
+    ("customer_success", "refund_followup"): refund_followup,
+    ("social_media", "content_calendar"): content_calendar,
+    ("product_architect", "product_spec_check"): product_spec_check,
 }
 
 

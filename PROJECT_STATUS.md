@@ -66,6 +66,12 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Mutação: 5 quebras deliberadas (`$step` não resolvido, rejeição não sinalizada, lacuna não sinalizada, revisor sem dependência da geração, etapa de risco no roteiro) → os testes falharam em todas; arquivo restaurado.
 - **Não verificado:** o roteiro pela interface do painel (o painel ainda não escolhe `pipeline`; só a API); execução no Excel real; frontend, PostgreSQL e `docker compose` nesta rodada.
 
+## Testes da Fase 7, 3º lote (2026-11-24)
+- Backend: `python -m pytest -q` → **189 passed, 3 skipped** (178 + 11 novos em `test_agent_tools_3.py`); os 3 skips são os testes de PostgreSQL já existentes.
+- Mutação: 8 quebras deliberadas (criativo sempre aprovado, arredondamento para baixo, reembolso incluindo vendas sem reembolso, datas sem espaçamento, limite de título, post marcado como publicado, entregáveis sem checagem, guarda de taxa maior que o preço) → os testes falharam em todas; uma escapou na 1ª rodada (guarda de taxa) e o teste foi reforçado; arquivo restaurado byte a byte.
+- Limites (`RISKY_PHRASES`, 90 caracteres de título) são heurísticas nossas, não regras de plataforma nem revisão jurídica.
+- **Não verificado:** frontend, PostgreSQL e `docker compose` nesta rodada; uso pelo painel (só API). Market Hunter segue sem ferramenta (exige token do Apify e pode gerar custo).
+
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
 - Conta proprietária inicial vem de `OWNER_EMAIL` e `OWNER_PASSWORD` (a senha passa por variável de ambiente); não há CLI nem tela de gerenciamento de contas.

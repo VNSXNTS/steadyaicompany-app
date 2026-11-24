@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Fase 7 — 3º lote de ferramentas
+- Creative Director `creative_check`, Growth Strategist `growth_math`, Customer Success `refund_followup`, Social Media Manager `content_calendar`, Product Architect `product_spec_check` em `agent_tools.py`. Sem IA, rede ou custo; nada é publicado, enviado ou gasto. Cada uma declara o que não sabe.
+- Testes: +11 em `test_agent_tools_3.py`.
 ### Fase 7 — CEO com roteiro de ferramentas
 - Novo roteiro opt-in `steady_payoff_build` em `ceo.py` (`POST /ceo/plan` com `pipeline`): Product Creator → Quality Guardian → Sales Manager e CFO. Sem IA, rede, custo ou etapa de risco; `new_product` inalterado.
 - `GET /ceo/report` ganhou `quality_rejected_tasks` e `quality_gap_tasks`, e `attention_needed` considera ambos.
