@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Fase 7 — 2º lote de ferramentas
+- Chief Strategy Officer `experiment_review`, Sales Manager `sales_report`, Competitor Analyst `offer_comparison` em `agent_tools.py`. Sem IA, rede ou custo; só leem dados registrados ou informados na tarefa e declaram o que não sabem.
+- Testes: +17 em `test_agent_tools_2.py`.
 ### Fase 7 — 1º lote de ferramentas reais dos agentes
 - `app/services/agent_tools.py`: CFO (`financial_summary`), Product Creator (`steady_payoff_xlsx`) e Quality Guardian (`review_xlsx`). Sem IA, rede ou custo. Tarefas pedem a ferramenta com `input.tool`; sem isso o comportamento anterior (provedor de IA) é o mesmo.
 - Arquivos gerados ficam em `ARTIFACTS_DIR` (padrão `storage/artifacts`) e são rastreáveis pela saída da tarefa (caminho relativo, bytes, SHA-256); ação auditada (`tool_run`).

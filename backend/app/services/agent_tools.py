@@ -3,6 +3,8 @@
 - cfo / financial_summary: números financeiros do banco (centavos; margem e ROI nulos sem base).
 - product_creator / steady_payoff_xlsx: gera a planilha Steady Payoff com fórmulas e a registra (caminho + SHA-256).
 - quality_guardian / review_xlsx: confere a planilha de verdade (arquivo, hash, fórmulas, erros, valores esperados).
+- strategy / experiment_review, sales_manager / sales_report, competitor_analyst / offer_comparison (2º lote):
+  só leem dados registrados ou informados na tarefa; dizem o que NÃO sabem.
 
 Uma tarefa só usa ferramenta se pedir explicitamente (`input.tool`); o roteiro do CEO continua como antes.
 Todo arquivo gerado fica em ARTIFACTS_DIR e é rastreável pela saída da tarefa (caminho relativo, bytes, sha256).
@@ -19,8 +21,12 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.orm import Session
 
-from app.models.entities import Task, TaskStatus
-from app.services import metrics
+import statistics
+
+from sqlalchemy import func, select
+
+from app.models.entities import Experiment, Product, Sale, Task, TaskStatus
+from app.services import experiments, metrics
 
 ERROR_VALUES = ("#REF!", "#NAME?", "#VALUE!", "#DIV/0!", "#N/A", "#NUM!", "#NULL!")
 FIRST_ROW, LAST_ROW = 5, 19  # linhas de dívidas na aba Debts (15 vagas)
@@ -276,11 +282,95 @@ def _verdict(checks: list[dict], record: dict) -> dict:
     return {"result": {"verdict": verdict, "checks": checks, "reviewed_file": record}, "notes": notes, "files": []}
 
 
+# ------------------------------------------------------------------------------- 2º lote
+MIN_SALES_FOR_CONFIDENCE = 30  # heurística nossa (não é regra estatística): abaixo disso, confiança baixa
+HIGH_REFUND_RATE_PERCENT = 10  # heurística nossa para sinalizar atenção, não um padrão de mercado
+
+
+def experiment_review(db: Session, task: Task) -> dict:
+    """Chief Strategy Officer: reaproveita as regras de `experiments` e acrescenta nível de confiança e riscos.
+    Não decide nada: gasto e escala continuam exigindo aprovação do proprietário."""
+    ref = (task.input or {}).get("experiment_id")
+    exp = db.get(Experiment, ref) if isinstance(ref, int) else None
+    if exp is None:
+        raise ToolError("Informe input.experiment_id de um experimento existente")
+    m = experiments.metrics(db, exp)
+    sales = m["sales_count"]
+    confidence = "baixa" if sales < max(exp.min_sales_to_decide, 1) else (
+        "média" if sales < MIN_SALES_FOR_CONFIDENCE else "mais alta")
+    risks = list(m["warnings"])
+    if sales < MIN_SALES_FOR_CONFIDENCE:
+        risks.append(f"Amostra pequena ({sales} venda(s)): o CPA pode mudar bastante com mais dados.")
+    if m["refunded_cents"] > 0:
+        risks.append("Há reembolsos registrados; o ponto de equilíbrio não os estima.")
+    return {"result": {"experiment_id": exp.id, "recommendation": m["action"], "reason": m["reason"],
+                       "confidence": confidence, "risks": risks,
+                       "cpa_cents": m["cpa_cents"], "break_even_cpa_cents": m["break_even_cpa_cents"],
+                       "spend_cents": m["spend_cents"], "sales_count": sales, "profit_cents": m["profit_cents"],
+                       "roi_percent": m["roi_percent"]},
+            "notes": ["Recomendação por regras sobre dados registrados; não garante lucro. "
+                      "Gastar ou escalar exige aprovação do proprietário."], "files": []}
+
+
+def sales_report(db: Session, task: Task) -> dict:
+    """Sales Manager: vendas e reembolsos por produto, só com o que está registrado (sem dados de funil)."""
+    rows = db.execute(
+        select(Sale.product_id, func.count(Sale.id), func.coalesce(func.sum(Sale.gross_cents), 0),
+               func.coalesce(func.sum(Sale.fee_cents), 0), func.coalesce(func.sum(Sale.refunded_cents), 0))
+        .group_by(Sale.product_id).order_by(Sale.product_id)
+    ).all()
+    names = {p.id: p.name for p in db.scalars(select(Product)).all()}
+    products, flags = [], []
+    for pid, n, gross, fees, refunded in rows:
+        refund_rate = round(refunded / gross * 100, 2) if gross > 0 else None
+        name = names.get(pid, "sem produto")
+        products.append({"product": name, "sales_count": int(n), "gross_cents": int(gross),
+                         "net_revenue_cents": int(gross - fees - refunded), "refund_rate_percent": refund_rate})
+        if refund_rate is not None and refund_rate > HIGH_REFUND_RATE_PERCENT:
+            flags.append(f"{name}: reembolsos de {refund_rate}% da receita bruta (acima de {HIGH_REFUND_RATE_PERCENT}%)")
+    notes = ["Conversão e abandono de funil NÃO são calculados: o sistema não recebe visitas nem cliques."]
+    if not products:
+        notes.append("Nenhuma venda registrada; nada a reportar.")
+    return {"result": {"products": products, "flags": flags}, "notes": notes, "files": []}
+
+
+def offer_comparison(db: Session, task: Task) -> dict:
+    """Competitor Analyst: compara APENAS as ofertas informadas em input.offers (não coleta nada da internet)."""
+    offers = (task.input or {}).get("offers")
+    if not isinstance(offers, list) or not offers:
+        raise ToolError("Informe input.offers: lista de {name, price_cents, bonuses?, source?}")
+    clean = []
+    for o in offers:
+        if not isinstance(o, dict) or not str(o.get("name", "")).strip():
+            raise ToolError("Cada oferta precisa de name")
+        price = o.get("price_cents")
+        if isinstance(price, bool) or not isinstance(price, int) or price < 0:
+            raise ToolError(f"price_cents inválido na oferta {o.get('name')!r} (inteiro em centavos, >= 0)")
+        bonuses = o.get("bonuses") or []
+        if not isinstance(bonuses, list):
+            raise ToolError(f"bonuses deve ser lista na oferta {o['name']!r}")
+        clean.append({"name": str(o["name"]).strip(), "price_cents": price, "bonus_count": len(bonuses),
+                      "source": str(o.get("source", "")).strip()})
+    prices = [o["price_cents"] for o in clean]
+    notes = ["Baseado somente nas ofertas informadas; nada foi coletado da internet nem verificado."]
+    if len(clean) < 3:
+        notes.append(f"Apenas {len(clean)} oferta(s): confiança baixa para falar em faixa de mercado.")
+    if any(not o["source"] for o in clean):
+        notes.append("Há ofertas sem fonte informada; não dá para conferir a origem do dado.")
+    return {"result": {"offers": clean, "count": len(clean), "min_price_cents": min(prices),
+                       "median_price_cents": int(statistics.median(prices)), "max_price_cents": max(prices),
+                       "offers_with_bonuses": sum(1 for o in clean if o["bonus_count"] > 0)},
+            "notes": notes, "files": []}
+
+
 # ----------------------------------------------------------------------------------- despacho
 TOOLS = {
     ("cfo", "financial_summary"): financial_summary,
     ("product_creator", "steady_payoff_xlsx"): steady_payoff_xlsx,
     ("quality_guardian", "review_xlsx"): review_xlsx,
+    ("strategy", "experiment_review"): experiment_review,
+    ("sales_manager", "sales_report"): sales_report,
+    ("competitor_analyst", "offer_comparison"): offer_comparison,
 }
 
 
