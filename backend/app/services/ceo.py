@@ -24,7 +24,21 @@ NEW_PRODUCT_PIPELINE = [
     ("growth_strategist", "Publicar anúncios pagos para: {goal}", [8], "publish_paid_ads"),
 ]
 
-PIPELINES = {"new_product": NEW_PRODUCT_PIPELINE}
+# Roteiro com FERRAMENTAS reais (sem IA, rede nem custo): gera a planilha Steady Payoff, manda o Quality
+# Guardian revisá-la e fecha com os números registrados. Itens: (agente, descrição, dependências, ação, entrada
+# extra). "$step:N" na entrada vira o id da tarefa da etapa N. Não há etapa de risco: nada é publicado nem gasto.
+STEADY_PAYOFF_BUILD_PIPELINE = [
+    ("product_creator", "Gerar a planilha Steady Payoff (dados de exemplo identificados) para: {goal}", [], None,
+     {"tool": "steady_payoff_xlsx"}),
+    ("quality_guardian", "Revisar a planilha gerada: hash, fórmulas, recálculo e valores para: {goal}", [0], None,
+     {"tool": "review_xlsx", "product_task_id": "$step:0"}),
+    ("sales_manager", "Relatório de vendas e reembolsos registrados para: {goal}", [1], None,
+     {"tool": "sales_report"}),
+    ("cfo", "Resumo financeiro registrado (receita líquida, lucro) para: {goal}", [1], None,
+     {"tool": "financial_summary"}),
+]
+
+PIPELINES = {"new_product": NEW_PRODUCT_PIPELINE, "steady_payoff_build": STEADY_PAYOFF_BUILD_PIPELINE}
 
 
 def plan_goal(db: Session, goal: str, pipeline: str = "new_product", priority: int = 3) -> list[Task]:
@@ -33,12 +47,15 @@ def plan_goal(db: Session, goal: str, pipeline: str = "new_product", priority: i
     if not goal.strip():
         raise TaskError("O objetivo não pode ser vazio")
     created: list[Task] = []
-    for agent_key, template, dep_idx, action in PIPELINES[pipeline]:
+    for step in PIPELINES[pipeline]:
+        agent_key, template, dep_idx, action = step[:4]
+        extra = {k: (created[int(v.split(":")[1])].id if isinstance(v, str) and v.startswith("$step:") else v)
+                 for k, v in (step[4] if len(step) > 4 else {}).items()}
         task = create_task(
             db, agent_key, template.format(goal=goal.strip()),
             priority=priority, action=action,
             depends_on=[created[i].id for i in dep_idx],
-            input={"goal": goal.strip(), "pipeline": pipeline},
+            input={"goal": goal.strip(), "pipeline": pipeline, **extra},
             actor="ceo",
         )
         created.append(task)
@@ -77,11 +94,18 @@ def executive_report(db: Session) -> dict:
         select(Task).where(Task.status == TaskStatus.PENDING)
     ).all()
     paused = [a.key for a in db.scalars(select(Agent).where(Agent.status == "paused"))]
+    reviews = [t for t in db.scalars(select(Task).where(Task.status == TaskStatus.COMPLETED,
+                                                        Task.agent_key == "quality_guardian")).all()
+               if ((t.output or {}).get("result") or {}).get("verdict")]
+    rejected = [t.id for t in reviews if t.output["result"]["verdict"] == "rejected"]
+    with_gaps = [t.id for t in reviews if t.output["result"]["verdict"] == "approved_with_gaps"]
     return {
         "tasks_by_status": {s: counts.get(s, 0) for s in TaskStatus.ALL},
         "pending_approvals": pending_approvals,
         "failed_tasks": [{"id": t.id, "agent": t.agent_key, "error": t.error} for t in failed],
         "waiting_tasks": len(blocked),
         "paused_agents": paused,
-        "attention_needed": bool(failed or pending_approvals or paused),
+        "quality_rejected_tasks": rejected,  # revisão do Quality Guardian que barrou o produto
+        "quality_gap_tasks": with_gaps,  # aprovado, mas com verificações que não puderam rodar
+        "attention_needed": bool(failed or pending_approvals or paused or rejected or with_gaps),
     }
