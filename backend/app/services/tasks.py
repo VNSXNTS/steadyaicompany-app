@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.entities import Agent, Approval, AuditLog, Experiment, Product, Task, TaskLog, TaskStatus
-from app.services import costs, experiments, policy
+from app.services import agent_tools, costs, experiments, policy
 from app.services.llm import LLMProvider, get_provider
 
 logger = logging.getLogger("steady.tasks")
@@ -105,6 +105,10 @@ def run_task(db: Session, task: Task, provider: LLMProvider | None = None) -> Ta
     if not _deps_done(db, task):
         raise TaskError("Dependências ainda não concluídas")
 
+    tool = (task.input or {}).get("tool")
+    if tool:
+        return _run_tool_task(db, task, agent, tool)
+
     provider = provider or get_provider()
 
     # Nenhum provedor pago roda sem orçamento autorizado (AI_MONTHLY_BUDGET_USD) ou acima dele.
@@ -141,6 +145,28 @@ def run_task(db: Session, task: Task, provider: LLMProvider | None = None) -> Ta
         else:
             task.status = TaskStatus.PENDING
             add_log(db, task, "retry_scheduled", task.error)
+    agent.last_run_at = datetime.now(timezone.utc)
+    db.commit()
+    return task
+
+
+def _run_tool_task(db: Session, task: Task, agent: Agent, tool: str) -> Task:
+    """Ferramentas são determinísticas, locais e sem custo: não passam pelo provedor de IA nem pelo
+    orçamento, e uma falha não é repetida (repetir daria o mesmo erro)."""
+    task.status = TaskStatus.RUNNING
+    task.attempts += 1
+    add_log(db, task, "started", f"ferramenta {tool}")
+    db.commit()
+    try:
+        task.output = agent_tools.run_tool(db, task, agent.key, tool)
+        task.error = None
+        task.status = TaskStatus.COMPLETED
+        add_log(db, task, "completed", f"ferramenta {tool}")
+    except Exception as exc:
+        task.error = f"{type(exc).__name__}: {exc}"
+        task.status = TaskStatus.FAILED
+        add_log(db, task, "failed", task.error)
+    audit(db, agent.key, "tool_run", {"task_id": task.id, "tool": tool, "status": task.status})
     agent.last_run_at = datetime.now(timezone.utc)
     db.commit()
     return task

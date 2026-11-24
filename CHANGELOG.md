@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+### Fase 7 — 1º lote de ferramentas reais dos agentes
+- `app/services/agent_tools.py`: CFO (`financial_summary`), Product Creator (`steady_payoff_xlsx`) e Quality Guardian (`review_xlsx`). Sem IA, rede ou custo. Tarefas pedem a ferramenta com `input.tool`; sem isso o comportamento anterior (provedor de IA) é o mesmo.
+- Arquivos gerados ficam em `ARTIFACTS_DIR` (padrão `storage/artifacts`) e são rastreáveis pela saída da tarefa (caminho relativo, bytes, SHA-256); ação auditada (`tool_run`).
+- Nova dependência: `openpyxl`. Recálculo de fórmulas usa o LibreOffice quando existe; sem ele o revisor declara a lacuna.
+- Testes: +12 em `test_agent_tools.py`.
 - Validar antes de escalar (Fase 16b, antecipada): `PUT /experiments/{id}/launch-plan` (3+ ângulos de criativo e checklist atestado pelo proprietário; bloqueia `request-approval`), evento sazonal (`event_name`/`event_date`, `days_to_event`, aviso, `stop` quando a data passa sem evidência), `POST /experiments/{id}/scale` (só de experimento validado, rascunho, nova aprovação, teto maior, uma escala aberta por vez). Migração `0003`. Order bump NÃO implementado. O sistema não gasta nem publica nada; o checklist não é verificado no mundo real.
 - Correções da revisão do PR nº 4: aprovar um experimento revalida o plano e a recomendação (STOP bloqueia a aprovação, que segue pendente; rejeitar/pedir alterações não são bloqueados; auditoria do bloqueio e da revalidação); checklist estritamente booleano (`"yes"` e `1` são recusados); ângulo e gancho normalizados com `strip` (vazio ou só espaços é recusado). `policy.py` e a migração `0003` não mudaram.
 - Testes: `test_validacao_escala.py` (49) + 1 em `test_migrations.py`; helper de `test_experiments.py` agora completa o plano de lançamento. Backend: 143 passam e 3 pulam em SQLite; 146 passam em PostgreSQL 16.
