@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+### Fase 7 — CEO com roteiro de ferramentas
+- Novo roteiro opt-in `steady_payoff_build` em `ceo.py` (`POST /ceo/plan` com `pipeline`): Product Creator → Quality Guardian → Sales Manager e CFO. Sem IA, rede, custo ou etapa de risco; `new_product` inalterado.
+- `GET /ceo/report` ganhou `quality_rejected_tasks` e `quality_gap_tasks`, e `attention_needed` considera ambos.
+- Testes: +6 em `test_ceo_tools.py`.
 ### Fase 7 — 2º lote de ferramentas
 - Chief Strategy Officer `experiment_review`, Sales Manager `sales_report`, Competitor Analyst `offer_comparison` em `agent_tools.py`. Sem IA, rede ou custo; só leem dados registrados ou informados na tarefa e declaram o que não sabem.
 - Testes: +17 em `test_agent_tools_2.py`.
