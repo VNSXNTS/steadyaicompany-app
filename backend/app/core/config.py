@@ -30,6 +30,7 @@ class Settings:
     gemini_output_usd_per_mtok: float
     ai_max_output_tokens: int  # teto de saída por chamada: limita o pior caso de custo
     llm_fallback_provider: str  # "" ou "ollama": usado só quando um provedor pago está bloqueado
+    n8n_webhook_secret: str  # segredo SÓ dos webhooks do n8n (mínimo 32 caracteres); vazio = webhooks desligados
     log_level: str
     frontend_dist: str
 
@@ -71,6 +72,7 @@ def get_settings() -> Settings:
         gemini_output_usd_per_mtok=_num("GEMINI_OUTPUT_USD_PER_MTOK", "0"),
         ai_max_output_tokens=_num("AI_MAX_OUTPUT_TOKENS", "1024", int),
         llm_fallback_provider=os.getenv("LLM_FALLBACK_PROVIDER", "").strip().lower(),
+        n8n_webhook_secret=os.getenv("N8N_WEBHOOK_SECRET", "").strip(),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         frontend_dist=os.getenv("FRONTEND_DIST", str(default_dist)),
     )

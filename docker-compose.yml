@@ -17,6 +17,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://steady:${POSTGRES_PASSWORD}@db:5432/steady
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-}
       OWNER_EMAIL: ${OWNER_EMAIL:?defina OWNER_EMAIL no .env}
       OWNER_PASSWORD: ${OWNER_PASSWORD:?defina OWNER_PASSWORD no .env}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}

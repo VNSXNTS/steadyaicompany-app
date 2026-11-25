@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.routes import router
+from app.api.webhooks import router as webhooks_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.database.migrate import run_migrations
@@ -55,6 +56,7 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(router)
 app.include_router(auth_router)
+app.include_router(webhooks_router)
 
 
 @app.get("/health")
