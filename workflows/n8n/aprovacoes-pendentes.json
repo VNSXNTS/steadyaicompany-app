@@ -1,0 +1,191 @@
+{
+  "name": "Steady - Aviso de aprovações pendentes",
+  "nodes": [
+    {
+      "id": "00000001-0000-4000-8000-000000000000",
+      "name": "A cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        60,
+        220
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000002-0000-4000-8000-000000000000",
+      "name": "Teste manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        60,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000003-0000-4000-8000-000000000000",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-base_url",
+              "name": "base_url",
+              "value": "https://SEU-BACKEND-AQUI",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Edite aqui: base_url é o endereço do backend (HTTPS em produção).",
+      "notesInFlow": true
+    },
+    {
+      "id": "00000004-0000-4000-8000-000000000000",
+      "name": "Buscar aprovações pendentes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.base_url }}/webhooks/n8n/approvals/pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Steady Webhook"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000005-0000-4000-8000-000000000000",
+      "name": "Só as novas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nconst seen = new Set(store.notified || []);\nconst fresh = (d.approvals || []).filter(a => !seen.has(a.id));\nif (!fresh.length) return [];\nstore.notified = [...seen, ...fresh.map(a => a.id)].slice(-500);\nconst L = [`${fresh.length} aprovação(ões) nova(s) esperando sua decisão no painel:`, ''];\nfor (const a of fresh) L.push(`- #${a.id} ${a.action} (agente ${a.agent}): ${a.consequences} | ${a.description}`);\nL.push('', 'Este aviso só informa. Aprovar ou rejeitar é feito no painel.');\nreturn [{ json: { subject: `Steady: ${fresh.length} aprovação(ões) pendente(s)`, text: L.join('\\n') } }];"
+      },
+      "notes": "Lembra quais já avisou (memória do workflow). A memória só persiste com o workflow ATIVO, não em teste manual.",
+      "notesInFlow": true
+    },
+    {
+      "id": "00000006-0000-4000-8000-000000000000",
+      "name": "Enviar e-mail",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1020,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "SEU_EMAIL@exemplo.com",
+        "toEmail": "SEU_EMAIL@exemplo.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {}
+      },
+      "disabled": true,
+      "notes": "DESLIGADO de propósito: configure a credencial SMTP, troque os e-mails e ative este nó.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "A cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste manual": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Buscar aprovações pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar aprovações pendentes": {
+      "main": [
+        [
+          {
+            "node": "Só as novas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Só as novas": {
+      "main": [
+        [
+          {
+            "node": "Enviar e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

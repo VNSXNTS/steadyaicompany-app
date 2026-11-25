@@ -1,0 +1,183 @@
+{
+  "name": "Steady - Enfileirar comparação de ofertas",
+  "nodes": [
+    {
+      "id": "00000001-0000-4000-8000-000000000000",
+      "name": "Teste manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        60,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000002-0000-4000-8000-000000000000",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-base_url",
+              "name": "base_url",
+              "value": "https://SEU-BACKEND-AQUI",
+              "type": "string"
+            },
+            {
+              "id": "cfg-offers_json",
+              "name": "offers_json",
+              "value": "[]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Edite aqui: base_url é o endereço do backend (HTTPS em produção).",
+      "notesInFlow": true
+    },
+    {
+      "id": "00000003-0000-4000-8000-000000000000",
+      "name": "Validar ofertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        300
+      ],
+      "parameters": {
+        "jsCode": "let offers;\ntry { offers = JSON.parse($input.first().json.offers_json); } catch (e) { throw new Error('offers_json no nó Config não é um JSON válido.'); }\nif (!Array.isArray(offers) || offers.length === 0) throw new Error('Preencha offers_json no nó Config com as ofertas REAIS que você levantou: [{\"name\":\"...\",\"price_cents\":1900,\"source\":\"...\"}]');\nreturn [{ json: { offers } }];"
+      }
+    },
+    {
+      "id": "00000004-0000-4000-8000-000000000000",
+      "name": "Enfileirar comparação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.base_url }}/webhooks/n8n/tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "=ofertas-{{ $execution.id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ agent_key: 'competitor_analyst', description: 'Comparar ofertas levantadas (' + $json.offers.length + ')', input: { tool: 'offer_comparison', offers: $json.offers } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Steady Webhook"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000005-0000-4000-8000-000000000000",
+      "name": "Ler tarefa criada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.base_url }}/webhooks/n8n/tasks/{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Steady Webhook"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Teste manual": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validar ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar ofertas": {
+      "main": [
+        [
+          {
+            "node": "Enfileirar comparação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enfileirar comparação": {
+      "main": [
+        [
+          {
+            "node": "Ler tarefa criada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

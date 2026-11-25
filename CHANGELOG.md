@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+### Fase 10 — n8n: webhooks autenticados e workflows
+- Migração `0005` (tabela `webhook_receipts`), `app/api/webhooks.py`: `POST /webhooks/n8n/tasks`, `GET /webhooks/n8n/tasks/{id}`, `GET /webhooks/n8n/report`, `GET /webhooks/n8n/approvals/pending`.
+- Segredo próprio `N8N_WEBHOOK_SECRET` (32+ caracteres, comparação em tempo constante; sem ele os webhooks respondem 503). O `X-API-Key`, o cookie do painel e o segredo do n8n não se substituem.
+- Idempotência por `Idempotency-Key` (chave única no banco): reenvio do n8n não duplica tarefa. Sem `action` (recusada com 422), campo reservado `handoff` removido, `input` limitado a 20.000 caracteres, n8n só enxerga tarefas criadas por webhook.
+- 4 workflows importáveis em `workflows/n8n/` (relatório diário, aviso de aprovações, criativos, ofertas), `docs/N8N.md`.
+- Testes: +23 de webhooks e migração, +28 de validação dos workflows.
 ### Fase 9 — Provedores de IA, guarda de orçamento e painel de consumo
 - `ClaudeProvider` e `GeminiProvider` (pagos). Só rodam com chave, modelo e preços por milhão de tokens informados; custo = tokens × preço, arredondado para cima; chave só em cabeçalho, nunca em URL, log, erro ou tarefa.
 - Guarda de orçamento reforçada: além de "gasto >= orçamento", bloqueia a chamada cujo PIOR caso (prompt estimado + `AI_MAX_OUTPUT_TOKENS`) estouraria o orçamento. Provedor mal configurado também fica bloqueado, sem consumir tentativas.

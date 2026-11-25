@@ -204,6 +204,17 @@ class AgentMessage(Base):
     hop: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class WebhookReceipt(Base):
+    """Recibo de idempotência dos webhooks: a mesma Idempotency-Key nunca cria duas tarefas (n8n reenvia em falha)."""
+
+    __tablename__ = "webhook_receipts"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    source: Mapped[str] = mapped_column(String(30))
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

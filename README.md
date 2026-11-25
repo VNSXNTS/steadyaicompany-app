@@ -55,6 +55,6 @@ Se `npm test` acusar "no tests" ou erros de carregamento, apague `node_modules` 
 Logs JSON no stdout com `request_id`; `GET /health` (público) informa banco e provedor.
 
 ## Limitações atuais
-Sem Telegram, Claude/Gemini só testados contra servidores falsos, só 1 workflow n8n, sem gerenciamento de usuários no painel, sem backup agendado (o backup é manual). Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
+Sem Telegram, Claude/Gemini só testados contra servidores falsos, workflows n8n sem envio de e-mail testado, sem gerenciamento de usuários no painel, sem backup agendado (o backup é manual). Não há promessa de funcionamento 24h: isso depende da infraestrutura onde você hospedar.
 
-Workflows n8n: `workflows/n8n/`.
+Workflows n8n e webhooks autenticados: `workflows/n8n/` e `docs/N8N.md`.

@@ -4,5 +4,7 @@
 de escala e gera rascunhos de criativos com a API do Claude. Importe em Workflows > Import from file.
 Requer APIFY_TOKEN, ANTHROPIC_API_KEY e uma planilha Google (veja a nota dentro do workflow).
 
-Os demais workflows do prompt (CEO, Strategy, Product Studio, CFO, Telegram, Error Handler) ainda NÃO existem.
-Quando forem criados, devem chamar a API do backend (`/tasks`, `/approvals`) com o header `X-API-Key`.
+Fase 10: `relatorio-diario`, `aprovacoes-pendentes`, `criativos-enfileirar` e `ofertas-para-comparacao` chamam
+APENAS os webhooks `/webhooks/n8n/*` do backend, com a credencial Header Auth `Steady Webhook` (`X-Webhook-Secret`).
+Passo a passo, rotas e limites em `docs/N8N.md`. Nenhum deles usa o `X-API-Key` do painel nem consegue aprovar algo.
+Ainda NÃO existem: Telegram (Fase 12), workflow de erro global e mineração ligada à fila do backend.

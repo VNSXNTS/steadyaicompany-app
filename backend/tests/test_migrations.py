@@ -12,7 +12,7 @@ from app.models import entities  # noqa: F401
 
 APP_TABLES = {
     "agents", "audit_logs", "expenses", "login_attempts", "products", "users", "auth_sessions",
-    "sales", "tasks", "ai_usage", "approvals", "task_logs", "experiments", "agent_messages",
+    "sales", "tasks", "ai_usage", "approvals", "task_logs", "experiments", "agent_messages", "webhook_receipts",
 }
 NEW_IN_AUTH = {"users", "auth_sessions", "login_attempts"}
 
@@ -36,7 +36,7 @@ def _version(eng) -> str | None:
 def test_upgrade_on_empty_database_creates_every_table(fresh_engine):
     run_migrations(fresh_engine)
     assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
-    assert _version(fresh_engine) == "0004"
+    assert _version(fresh_engine) == "0005"
 
 
 def test_migrated_schema_matches_the_models_exactly(fresh_engine):
@@ -56,7 +56,7 @@ def test_upgrade_twice_is_a_noop(fresh_engine):
     run_migrations(fresh_engine)
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM products")).scalar() == 1
-    assert _version(fresh_engine) == "0004"
+    assert _version(fresh_engine) == "0005"
 
 
 def test_adopts_a_v02_database_created_without_alembic_without_losing_data(fresh_engine):
@@ -80,7 +80,7 @@ def test_adopts_a_v02_database_created_without_alembic_without_losing_data(fresh
     run_migrations(fresh_engine)
 
     assert _tables(fresh_engine) == APP_TABLES | {"alembic_version"}
-    assert _version(fresh_engine) == "0004"
+    assert _version(fresh_engine) == "0005"
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT name, price_cents FROM products")).one() == ("Steady Payoff", 1900)
         row = c.execute(text("SELECT amount_cents, experiment_id FROM expenses")).one()
@@ -155,9 +155,22 @@ def test_0004_downgrade_drops_only_messages_and_upgrade_recreates(fresh_engine):
     with fresh_engine.begin() as c:
         c.execute(text("INSERT INTO products (name, niche, description, price_cents, status, created_at) "
                        "VALUES ('p','n','d',100,'draft','2026-01-01 00:00:00')"))
-    downgrade(fresh_engine, "0003")
-    assert "agent_messages" not in _tables(fresh_engine) and "tasks" in _tables(fresh_engine)
+    downgrade(fresh_engine, "0003")  # passa pela 0005 e pela 0004
+    assert "agent_messages" not in _tables(fresh_engine) and "webhook_receipts" not in _tables(fresh_engine) and "tasks" in _tables(fresh_engine)
     with fresh_engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM products")).scalar() == 1
     run_migrations(fresh_engine)
-    assert "agent_messages" in _tables(fresh_engine) and _version(fresh_engine) == "0004"
+    assert "agent_messages" in _tables(fresh_engine) and _version(fresh_engine) == "0005"
+
+
+def test_0005_downgrade_drops_only_receipts_and_upgrade_recreates(fresh_engine):
+    run_migrations(fresh_engine)
+    with fresh_engine.begin() as c:
+        c.execute(text("INSERT INTO webhook_receipts (key, source, task_id, created_at) "
+                       "VALUES ('abc12345','n8n',NULL,'2026-01-01 00:00:00')"))
+    downgrade(fresh_engine, "0004")
+    assert "webhook_receipts" not in _tables(fresh_engine) and "agent_messages" in _tables(fresh_engine)
+    run_migrations(fresh_engine)
+    assert "webhook_receipts" in _tables(fresh_engine) and _version(fresh_engine) == "0005"
+    with fresh_engine.connect() as c:
+        assert c.execute(text("SELECT COUNT(*) FROM webhook_receipts")).scalar() == 0
