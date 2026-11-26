@@ -39,6 +39,10 @@ STEADY_PAYOFF_BUILD_PIPELINE = [
 ]
 
 PIPELINES = {"new_product": NEW_PRODUCT_PIPELINE, "steady_payoff_build": STEADY_PAYOFF_BUILD_PIPELINE}
+PIPELINE_LABELS = {
+    "new_product": "Novo produto (agentes com IA; a última etapa, anúncio pago, para e pede sua aprovação)",
+    "steady_payoff_build": "Steady Payoff: gerar e revisar a planilha (ferramentas, sem IA, sem custo, sem risco)",
+}
 
 
 def plan_goal(db: Session, goal: str, pipeline: str = "new_product", priority: int = 3) -> list[Task]:

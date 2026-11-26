@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, type Agent, type AgentStat, type Task } from "../lib/api";
+import { api, type Agent, type AgentStat, type Task, type ToolInfo } from "../lib/api";
 import { useApi, useToast } from "../lib/hooks";
 import { dateTime, departmentLabel, int } from "../lib/format";
 import { Empty, ErrorNote, Field, Loading, PageHeader, Status } from "../components/ui";
@@ -12,6 +12,12 @@ export function Agents() {
   const [text, setText] = useState("");
   const [priority, setPriority] = useState(3);
   const [busy, setBusy] = useState(false);
+  const tools = useApi(() => api.get<ToolInfo[]>("/agent-tools"));
+  const [tool, setTool] = useState("");
+  const [inputText, setInputText] = useState("");
+  const [inputError, setInputError] = useState("");
+  const agentTools = tools.data?.filter((t) => t.agent_key === target?.key) ?? [];
+  const closeModal = () => { setTarget(null); setText(""); setPriority(3); setTool(""); setInputText(""); setInputError(""); };
 
   async function toggle(a: Agent) {
     try {
@@ -24,11 +30,24 @@ export function Agents() {
   async function create(e: FormEvent) {
     e.preventDefault();
     if (!target) return;
+    let input: Record<string, unknown> = {};
+    if (inputText.trim()) {
+      try {
+        const parsed: unknown = JSON.parse(inputText);
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("não é um objeto");
+        input = parsed as Record<string, unknown>;
+      } catch {
+        setInputError("Entrada inválida: informe um objeto JSON, por exemplo {\"product_task_id\": 3}.");
+        return;
+      }
+    }
+    setInputError("");
+    if (tool) input = { ...input, tool };
     setBusy(true);
     try {
-      const t = await api.post<Task>("/tasks", { agent_key: target.key, description: text, priority });
+      const t = await api.post<Task>("/tasks", { agent_key: target.key, description: text, priority, input });
       toast(`Tarefa #${t.id} criada para ${target.name}.`);
-      setTarget(null); setText(""); setPriority(3);
+      closeModal();
       stats.reload();
     } catch (err) { toast((err as Error).message, "erro"); }
     finally { setBusy(false); }
@@ -77,11 +96,21 @@ export function Agents() {
           <form onSubmit={create} className="bg-panel border border-line rounded-md p-6 w-full max-w-lg grid gap-4">
             <h2 className="display text-xl m-0">Nova tarefa para {target.name}</h2>
             <Field label="O que o agente deve fazer"><textarea className="input" rows={4} value={text} onChange={(e) => setText(e.target.value)} minLength={3} maxLength={4000} required autoFocus /></Field>
+            <Field label="Ferramenta (opcional)">
+              <select className="input" value={tool} onChange={(e) => setTool(e.target.value)}>
+                <option value="">Nenhuma: o agente usa o modelo de IA</option>
+                {agentTools.map((t) => <option key={t.tool} value={t.tool}>{t.tool}: {t.summary}</option>)}
+              </select>
+            </Field>
+            {tools.error && <ErrorNote message={tools.error} onRetry={tools.reload} />}
+            {tool && <p className="text-sm text-muted m-0">Ferramenta roda por regras fixas, sem IA e sem custo; não executa ações de risco.</p>}
+            {tool && <Field label="Entrada da ferramenta (JSON, opcional)"><textarea className="input num" rows={3} value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder='{"product_task_id": 3}' /></Field>}
+            {inputError && <ErrorNote message={inputError} />}
             <Field label="Prioridade (1 = urgente, 5 = baixa)">
               <select className="input" value={priority} onChange={(e) => setPriority(Number(e.target.value))}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select>
             </Field>
             <div className="flex gap-2 justify-end">
-              <button type="button" className="btn" onClick={() => setTarget(null)}>Cancelar</button>
+              <button type="button" className="btn" onClick={closeModal}>Cancelar</button>
               <button className="btn btn-primary" disabled={busy}>{busy ? "Criando…" : "Criar tarefa"}</button>
             </div>
           </form>

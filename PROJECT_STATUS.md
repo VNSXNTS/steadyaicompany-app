@@ -15,7 +15,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 8 Comunicação entre agentes | 🟡 | via dependências de tarefas; sem mensagens diretas |
 | 9 Ollama e provedores | 🟡 | Mock + Ollama implementados (Ollama **não testado contra servidor real**). Claude/Gemini não implementados. |
 | 10 Workflows n8n | 🟡 | 1 workflow de mineração importável; 12 faltam; backend sem webhooks |
-| 11 Painel administrativo | ✅ | todas as telas ligadas à API real; testado no navegador (desktop e celular) |
+| 11 Painel administrativo | 🟡 | **Em revisão (branch `feature/fase-11-painel`, empilhada sobre a fase 10), não mesclada.** Novo: detalhe da tarefa com resultado de ferramenta, avisos e download de arquivos (o backend confere SHA-256 antes de servir); seletor de ferramenta com entrada JSON em Agentes; seletor de roteiro do CEO (avisa da etapa de risco); telas **Comunicação** (mensagens e passagem de tarefa) e **Experimentos** (criar, plano de lançamento, pedir aprovação, registrar gasto/venda, encerrar, etapa de escala). Tudo ligado à API real, com estados de carregando, vazio e erro. **Não verificado:** teste manual no navegador desta fase (só testes automatizados e build); celular; telas de Produtos/Financeiro não foram revisadas de novo. |
 | 12 Telegram | ⬜ | |
 | 13 Steady Payoff | 🟡 | planilha e página de vendas prontas (entregues antes); ainda não integradas ao sistema |
 | 14 Landing + checklist | ⬜ | checklist de 20 itens não implementado |
@@ -92,6 +92,13 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - **Teste real no n8n 2.35.7** (instalado via npm, CLI): importei e executei os 4 workflows novos contra um backend local (uvicorn, SQLite) com credencial Header Auth real. Resultado: backend recebeu `GET /report` 200, `GET /approvals/pending` 200, `POST /tasks` 201 (x2) e `GET /tasks/{id}` 200 (x2); o aviso de aprovação trouxe a aprovação real criada no backend; as duas tarefas enfileiradas pelo n8n rodaram depois pelo painel (`creative_check` aprovado, `offer_comparison` com mediana correta); workflow de criativos com título vazio falhou com a mensagem "Preencha…" sem enfileirar nada.
 - **Não verificado:** envio de e-mail (nó desligado de propósito; nenhum SMTP testado); execução por agenda com o workflow ATIVO (os testes usaram o gatilho manual pelo CLI; a memória de "já avisei" depende do workflow ativo); importação pela interface web do n8n (usei o CLI); versões do n8n diferentes da 2.35.7; `market-hunter-mineracao.json` (não alterado, Apify/Claude, exige tokens pagos); PostgreSQL e docker compose; limite de taxa (rate limit) e de tamanho de corpo nos webhooks (ficam para o proxy da Fase 18); assinatura HMAC (hoje é segredo compartilhado, exige HTTPS).
 - Credencial dos workflows: vem sem `id` (o n8n pede para selecionar a credencial `Steady Webhook` ao importar).
+
+## Testes da Fase 11 (2026-11-25)
+- Backend: `python -m pytest -q` → **300 passed, 3 skipped** (287 + 13 em `test_panel_api.py`); os 3 skips são os testes de PostgreSQL sem `TEST_DATABASE_URL`.
+- Frontend: `npx vitest run` → **21 passed** (11 anteriores + 10 em `phase11.test.tsx`); `tsc --noEmit` e `vite build` limpos.
+- Mutação no backend: 8 quebras (caminho fora da pasta, arquivo ausente, SHA-256, índice fora do intervalo, 409 virando 500, `risky` sempre falso, nome e tipo do arquivo, resumo da ferramenta) → pegas. Mutação no painel: 7 quebras (roteiro não enviado, link de download errado, ferramenta não enviada, JSON sem validação, centavos errados, pedir aprovação liberado com pendências, ROI inventado como 0) → pegas. Arquivos restaurados byte a byte (`cmp`).
+- A prova achou 3 ferramentas sem descrição (`financial_summary`, `steady_payoff_xlsx`, `review_xlsx`); corrigido.
+- **Não verificado:** navegador real (desktop e celular), leitor de tela, PostgreSQL e docker compose nesta rodada.
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).

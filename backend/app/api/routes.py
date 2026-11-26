@@ -1,4 +1,7 @@
+import mimetypes
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,7 +10,7 @@ from app.core.security import require_admin
 from app.database.session import get_db
 from app.models.entities import Agent, Approval, Expense, Experiment, Product, Sale, Task, TaskLog
 from app.schemas import schemas as s
-from app.services import ceo, communication, costs, experiments, metrics
+from app.services import agent_tools, ceo, communication, costs, experiments, metrics, policy
 from app.services.llm import get_provider
 from app.services.tasks import TaskError, audit, create_task, decide_approval, run_task
 
@@ -35,6 +38,33 @@ def set_agent_status(key: str, action: str, db: Session = Depends(get_db)):
     audit(db, "admin", f"agent_{action}", {"agent": key})
     db.commit()
     return agent
+
+
+# ---- ferramentas, roteiros e arquivos (painel) ----
+@router.get("/agent-tools")
+def get_agent_tools():
+    return agent_tools.list_tools()
+
+
+@router.get("/ceo/pipelines")
+def get_pipelines():
+    return [{"key": k, "label": ceo.PIPELINE_LABELS.get(k, k),
+             "steps": [{"agent_key": st[0], "risky": policy.is_risky(st[3])} for st in steps],
+             "uses_tools": any(len(st) > 4 and "tool" in st[4] for st in steps)}
+            for k, steps in ceo.PIPELINES.items()]
+
+
+@router.get("/tasks/{task_id}/files/{index}")
+def download_task_file(task_id: int, index: int, db: Session = Depends(get_db)):
+    task = db.get(Task, task_id)
+    files = ((task.output or {}).get("files") or []) if task else []
+    if not 0 <= index < len(files):
+        raise HTTPException(404, "Arquivo não encontrado")
+    try:
+        path = agent_tools.resolve_artifact(files[index])
+    except agent_tools.ToolError as e:
+        raise HTTPException(409, str(e)) from e
+    return FileResponse(path, filename=path.name, media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
 
 
 # ---- comunicação entre agentes ----
@@ -246,6 +276,11 @@ def post_experiment(body: s.ExperimentIn, db: Session = Depends(get_db)):
 @router.get("/experiments", response_model=list[s.ExperimentOut])
 def list_experiments(db: Session = Depends(get_db)):
     return [_experiment_out(db, e) for e in db.scalars(select(Experiment).order_by(Experiment.id.desc()))]
+
+
+@router.get("/experiments/launch-checklist")
+def get_launch_checklist():
+    return {"items": experiments.LAUNCH_CHECKLIST, "min_creative_angles": experiments.MIN_CREATIVE_ANGLES}
 
 
 @router.get("/experiments/{experiment_id}", response_model=s.ExperimentOut)

@@ -30,11 +30,14 @@ Defina `OWNER_EMAIL`, `OWNER_PASSWORD` (mínimo 12 caracteres) e `POSTGRES_PASSW
 - **Ainda não existe** (ver `PROJECT_STATUS.md`): CLI para criar usuários, bloqueio por usuário (hoje só por IP), token CSRF, hash argon2/bcrypt (hoje PBKDF2, 260.000 rodadas).
 - A senha inicial é criada apenas quando a conta não existe; para trocar credenciais, atualize o banco por procedimento administrativo seguro antes de alterar/remover os valores de bootstrap.
 
+## Painel
+Telas: Visão geral, Agentes, Tarefas, Comunicação, Experimentos, Aprovações, Produtos, Financeiro, Configurações. Arquivos gerados por ferramentas (ex.: planilha Steady Payoff) baixam pela tarefa; o servidor recusa o download se o arquivo mudou desde a geração (SHA-256). Testado só de forma automatizada nesta fase; teste manual no navegador ainda pendente.
+
 ## Banco de dados
 O esquema nasce só de migrações Alembic, executadas ao iniciar o backend. `DATABASE_URL` vazio = SQLite local; `postgresql+psycopg://...` = PostgreSQL. Backup e restauração: `python -m app.database.backup backup|verify|restore` (em `backend/`). Guia completo, com o que foi e o que NÃO foi testado (Docker compose não foi): [docs/BANCO.md](docs/BANCO.md).
 
 ## Experimentos de validação de oferta
-Teste com orçamento pequeno e critérios de parada definidos antes de gastar, com CPA, ROI e recomendação por regras; exige sua aprovação para começar e recusa marcar como validada uma oferta que não cumpriu as regras. O sistema não gasta nem publica anúncio: você roda a campanha e registra gasto e vendas. Fase 16b: antes de pedir aprovação, exige 3 ângulos de criativo e um checklist atestado por você; considera a data de um evento sazonal; e só deixa criar a etapa de **escala** a partir de um experimento já validado (com nova aprovação). Só API (sem tela). Não garante lucro. Guia e limites: [docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md).
+Teste com orçamento pequeno e critérios de parada definidos antes de gastar, com CPA, ROI e recomendação por regras; exige sua aprovação para começar e recusa marcar como validada uma oferta que não cumpriu as regras. O sistema não gasta nem publica anúncio: você roda a campanha e registra gasto e vendas. Fase 16b: antes de pedir aprovação, exige 3 ângulos de criativo e um checklist atestado por você; considera a data de um evento sazonal; e só deixa criar a etapa de **escala** a partir de um experimento já validado (com nova aprovação). Tem tela em **Experimentos** no painel (e a API). Não garante lucro. Guia e limites: [docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md).
 
 ## IA e custos
 - `LLM_PROVIDER=mock` (padrão): não chama modelo; saída marcada `[MOCK]`.

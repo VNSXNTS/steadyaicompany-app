@@ -58,6 +58,7 @@ def _file_record(path: Path) -> dict:
 
 # ----------------------------------------------------------------------------------------- CFO
 def financial_summary(db: Session, task: Task) -> dict:
+    """Resumo financeiro real: receita bruta, taxas, reembolsos, lucro; margem e ROI ficam nulos sem base."""
     d = metrics.dashboard(db)
     keys = ("gross_revenue_cents", "fees_cents", "refunds_cents", "net_revenue_cents", "expenses_cents",
             "profit_cents", "margin_percent", "roi_percent", "sales_count")
@@ -186,6 +187,7 @@ def build_steady_payoff_workbook() -> Workbook:
 
 
 def steady_payoff_xlsx(db: Session, task: Task) -> dict:
+    """Gera a planilha Steady Payoff com fórmulas e guarda o arquivo com SHA-256."""
     out = artifacts_dir() / f"task-{task.id}"
     out.mkdir(parents=True, exist_ok=True)
     path = out / "Steady-Payoff-Debt-Planner.xlsx"
@@ -224,6 +226,7 @@ def _recalculate(path: Path) -> Path | None:
 
 
 def review_xlsx(db: Session, task: Task) -> dict:
+    """Revisa a planilha gerada (fórmulas, abas, erros) a partir de product_task_id."""
     ref = (task.input or {}).get("product_task_id")
     product = db.get(Task, ref) if isinstance(ref, int) else None
     if product is None or product.status != TaskStatus.COMPLETED or not (product.output or {}).get("files"):
@@ -492,6 +495,26 @@ TOOLS = {
     ("social_media", "content_calendar"): content_calendar,
     ("product_architect", "product_spec_check"): product_spec_check,
 }
+
+
+def resolve_artifact(record: dict) -> Path:
+    """Caminho do arquivo gerado, com tudo conferido ANTES de servir: dentro de ARTIFACTS_DIR, existente e com o
+    mesmo SHA-256 registrado na geração. O caminho vem do registro da tarefa, nunca de quem pede o download."""
+    base = artifacts_dir()
+    path = (base / str(record.get("path", ""))).resolve()
+    if base not in path.parents:
+        raise ToolError("Caminho fora de ARTIFACTS_DIR recusado")
+    if not path.is_file():
+        raise ToolError("Arquivo não encontrado no armazenamento")
+    if _sha256(path) != record.get("sha256"):
+        raise ToolError("O arquivo mudou desde que foi gerado (SHA-256 diferente); download recusado")
+    return path
+
+
+def list_tools() -> list[dict]:
+    """Ferramentas disponíveis por agente, com a primeira linha da descrição de cada uma."""
+    return [{"agent_key": a, "tool": t, "summary": ((fn.__doc__ or "").strip().splitlines() or [""])[0]}
+            for (a, t), fn in sorted(TOOLS.items())]
 
 
 def run_tool(db: Session, task: Task, agent_key: str, tool: str) -> dict:

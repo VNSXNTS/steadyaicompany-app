@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { api, type Task, type TaskLog } from "../lib/api";
+import { api, type Pipeline, type Task, type TaskLog } from "../lib/api";
 import { useApi, useToast } from "../lib/hooks";
 import { dateTime, eventLabel, taskStatusLabel } from "../lib/format";
+import { ToolOutput } from "../components/ToolOutput";
 import { Empty, ErrorNote, Field, Loading, PageHeader, Section, Status } from "../components/ui";
 
 const STATUSES = Object.keys(taskStatusLabel);
@@ -29,6 +30,7 @@ function Detail({ task, onChanged }: { task: Task; onChanged: () => void }) {
       </div>
       <p className="m-0">{task.description}</p>
       {task.error && <ErrorNote message={task.error} />}
+      <ToolOutput task={task} />
       {task.output?.text && (
         <div>
           <div className="text-muted text-sm mb-1">Resultado ({task.output.provider}{task.output.model ? ` · ${task.output.model}` : ""})</div>
@@ -58,6 +60,9 @@ export function Tasks({ params }: { params: URLSearchParams }) {
     if (agent) q.set("agent_key", agent);
     return api.get<Task[]>(`/tasks${q.size ? `?${q}` : ""}`);
   }, [status, agent]);
+  const pipelines = useApi(() => api.get<Pipeline[]>("/ceo/pipelines"));
+  const [pipeline, setPipeline] = useState("new_product");
+  const chosen = pipelines.data?.find((p) => p.key === pipeline);
   const [goal, setGoal] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -65,7 +70,7 @@ export function Tasks({ params }: { params: URLSearchParams }) {
     e.preventDefault();
     setBusy(true);
     try {
-      const t = await api.post<Task[]>("/ceo/plan", { goal });
+      const t = await api.post<Task[]>("/ceo/plan", { goal, pipeline });
       toast(`O CEO criou ${t.length} tarefas.`);
       setGoal(""); list.reload();
     } catch (err) { toast((err as Error).message, "erro"); }
@@ -86,9 +91,15 @@ export function Tasks({ params }: { params: URLSearchParams }) {
       <PageHeader title="Tarefas" intro="Fila de trabalho dos agentes. Ações de risco param em “Aguardando aprovação” até você decidir."
         actions={<button className="btn btn-primary" onClick={runAll} disabled={busy}>Executar fila</button>} />
       <form onSubmit={plan} className="flex flex-wrap items-end gap-3 pb-6">
-        <div className="grow min-w-64 max-w-xl"><Field label="Pedir um plano ao CEO (novo produto)"><input className="input" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Ex.: planilha de quitação de dívidas para o mercado dos EUA" minLength={3} maxLength={500} required /></Field></div>
+        <div className="grow min-w-64 max-w-xl"><Field label="Objetivo para o CEO"><input className="input" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Ex.: planilha de quitação de dívidas para o mercado dos EUA" minLength={3} maxLength={500} required /></Field></div>
+        <div className="min-w-64 max-w-md"><Field label="Roteiro">
+          <select className="input" value={pipeline} onChange={(e) => setPipeline(e.target.value)} disabled={!pipelines.data}>
+            {(pipelines.data ?? [{ key: "new_product", label: "Novo produto" } as Pipeline]).map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select></Field></div>
         <button className="btn" disabled={busy}>Criar plano</button>
       </form>
+      {pipelines.error && <ErrorNote message={pipelines.error} onRetry={pipelines.reload} />}
+      {chosen?.steps.some((st) => st.risky) && <p className="text-sm text-muted m-0 pb-4">Este roteiro tem uma etapa de risco: ela fica em “Aguardando aprovação” até você decidir.</p>}
       <Section title="Fila" actions={
         <div className="flex gap-3 items-end">
           {agent && <a href="#/tarefas" className="text-sm">Limpar filtro de agente ({agent})</a>}

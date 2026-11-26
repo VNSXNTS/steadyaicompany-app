@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+### Fase 11 — Painel completo
+- Backend: `GET /agent-tools`, `GET /ceo/pipelines` (com flag `risky` por etapa), `GET /tasks/{id}/files/{index}` (caminho só do registro da tarefa; recusa com 409 arquivo ausente, fora de `ARTIFACTS_DIR` ou com SHA-256 diferente), `GET /experiments/launch-checklist`. Três ferramentas ganharam descrição.
+- Painel: resultado de ferramenta e download na tarefa; ferramenta e entrada JSON ao criar tarefa; seletor de roteiro do CEO; telas Comunicação e Experimentos.
+- Testes: +13 backend, +10 frontend.
 ### Fase 10 — n8n: webhooks autenticados e workflows
 - Migração `0005` (tabela `webhook_receipts`), `app/api/webhooks.py`: `POST /webhooks/n8n/tasks`, `GET /webhooks/n8n/tasks/{id}`, `GET /webhooks/n8n/report`, `GET /webhooks/n8n/approvals/pending`.
 - Segredo próprio `N8N_WEBHOOK_SECRET` (32+ caracteres, comparação em tempo constante; sem ele os webhooks respondem 503). O `X-API-Key`, o cookie do painel e o segredo do n8n não se substituem.

@@ -9,6 +9,8 @@ import { Tasks } from "./pages/Tasks";
 import { Approvals } from "./pages/Approvals";
 import { Products } from "./pages/Products";
 import { Finance } from "./pages/Finance";
+import { Communication } from "./pages/Communication";
+import { Experiments } from "./pages/Experiments";
 import { Settings } from "./pages/Settings";
 
 function Routes() {
@@ -16,6 +18,8 @@ function Routes() {
   switch (path) {
     case "/agentes": return <Agents />;
     case "/tarefas": return <Tasks params={params} />;
+    case "/comunicacao": return <Communication />;
+    case "/experimentos": return <Experiments />;
     case "/aprovacoes": return <Approvals />;
     case "/produtos": return <Products />;
     case "/financeiro": return <Finance />;

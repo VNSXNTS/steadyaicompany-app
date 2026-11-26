@@ -11,9 +11,36 @@ export type AgentStat = {
 export type Task = {
   id: number; agent_key: string; department: string; description: string; priority: number;
   status: string; action: string | null; requires_approval: boolean; depends_on: number[];
-  output: { text?: string; provider?: string; model?: string } | null;
+  output: TaskOutput | null;
+  input?: Record<string, unknown>;
   error: string | null; attempts: number; created_at: string; due_at: string | null;
 };
+export type TaskFile = { path: string; bytes: number; sha256: string };
+export type TaskOutput = {
+  text?: string; provider?: string; model?: string;
+  tool?: string; result?: Record<string, unknown>; notes?: string[]; files?: TaskFile[];
+};
+export type ToolInfo = { agent_key: string; tool: string; summary: string };
+export type Pipeline = { key: string; label: string; uses_tools: boolean; steps: { agent_key: string; risky: boolean }[] };
+export type AgentMessage = {
+  id: number; created_at: string; kind: string; from_agent: string; to_agent: string; subject: string; body: string;
+  task_id: number | null; handoff_task_id: number | null; parent_id: number | null; hop: number;
+};
+export type ExperimentMetrics = {
+  spend_cents: number; sales_count: number; gross_cents: number; fees_cents: number; refunded_cents: number;
+  net_revenue_cents: number; profit_cents: number; roi_percent: number | null; cpa_cents: number | null;
+  break_even_cpa_cents: number; budget_used_percent: number; days_to_event: number | null;
+  launch_blockers: string[]; warnings: string[]; action: string; reason: string;
+};
+export type Experiment = {
+  id: number; name: string; product_id: number | null; market: string; currency: string; price_cents: number;
+  fee_bps: number; fee_fixed_cents: number; budget_cap_cents: number; max_spend_without_sale_cents: number;
+  min_sales_to_decide: number; status: string; outcome: string | null; outcome_note: string; created_at: string;
+  stage: string; parent_experiment_id: number | null; event_name: string | null; event_date: string | null;
+  creative_angles: { angle: string; hook: string }[]; launch_checklist: Record<string, boolean>;
+  metrics: ExperimentMetrics | null;
+};
+export type LaunchChecklist = { items: Record<string, string>; min_creative_angles: number };
 export type TaskLog = { id: number; event: string; message: string; created_at: string };
 export type Approval = {
   id: number; task_id: number | null; action: string; details: Record<string, unknown>;
@@ -52,7 +79,7 @@ export class ApiError extends Error {
   }
 }
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export function describeDetail(detail: unknown): string {
   if (typeof detail === "string") return detail;
@@ -70,7 +97,7 @@ export function describeDetail(detail: unknown): string {
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(BASE + path, {
+    res = await fetch(API_BASE + path, {
       ...init,
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
@@ -92,6 +119,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 export const api = {
+  put: <T,>(path: string, body: unknown) => request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   get: <T,>(path: string) => request<T>(path),
   post: <T,>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
