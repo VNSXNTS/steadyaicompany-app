@@ -98,7 +98,8 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - Frontend: `npx vitest run` → **21 passed** (11 anteriores + 10 em `phase11.test.tsx`); `tsc --noEmit` e `vite build` limpos.
 - Mutação no backend: 8 quebras (caminho fora da pasta, arquivo ausente, SHA-256, índice fora do intervalo, 409 virando 500, `risky` sempre falso, nome e tipo do arquivo, resumo da ferramenta) → pegas. Mutação no painel: 7 quebras (roteiro não enviado, link de download errado, ferramenta não enviada, JSON sem validação, centavos errados, pedir aprovação liberado com pendências, ROI inventado como 0) → pegas. Arquivos restaurados byte a byte (`cmp`).
 - A prova achou 3 ferramentas sem descrição (`financial_summary`, `steady_payoff_xlsx`, `review_xlsx`); corrigido.
-- **Não verificado:** navegador real (desktop e celular), leitor de tela, PostgreSQL e docker compose nesta rodada.
+- PostgreSQL 16 real (local, sem Docker), 2026-11-26: `TEST_DATABASE_URL=… python -m pytest -q` → **303 passed, 0 skipped** (os 3 testes exclusivos de PostgreSQL rodaram).
+- **Não verificado:** navegador real (desktop e celular), leitor de tela, `docker compose` (sem daemon na sessão).
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).
