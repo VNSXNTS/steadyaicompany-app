@@ -410,6 +410,14 @@ def provider_status():
             "paid": provider.paid}
 
 
+def _telegram_state(st) -> str:
+    if not st.telegram_bot_token:
+        return "desligado (sem TELEGRAM_BOT_TOKEN)"
+    if not st.telegram_allowed_user_ids:
+        return "token configurado, mas sem usuários autorizados: o bot ignora todos"
+    return f"configurado ({len(st.telegram_allowed_user_ids)} usuário(s) autorizado(s)); rode o bot: python -m app.services.telegram_bot"
+
+
 def _paid_state(key: str, model: str, in_price: float, out_price: float) -> str:
     """Só diz o que está configurado, nunca o valor da chave. Não prova que o serviço responde."""
     missing = [n for n, ok in (("chave", bool(key)), ("modelo", bool(model)), ("preços", in_price > 0 and out_price > 0))
@@ -434,7 +442,7 @@ def get_app_settings():
         "admin_key_configured": bool(st.admin_api_key),
         "owner_account_configured": bool(st.owner_email and st.owner_password),
         "integrations": {
-            "telegram": "não implementado",
+            "telegram": _telegram_state(st),
             "n8n": "workflow de mineração pronto para importar; webhooks do backend não implementados",
             "claude": _paid_state(st.anthropic_api_key, st.anthropic_model, st.anthropic_input_usd_per_mtok,
                                   st.anthropic_output_usd_per_mtok),

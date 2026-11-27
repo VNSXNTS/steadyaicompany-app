@@ -16,7 +16,7 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 | 9 Ollama e provedores | 🟡 | Mock + Ollama implementados (Ollama **não testado contra servidor real**). Claude/Gemini não implementados. |
 | 10 Workflows n8n | 🟡 | 1 workflow de mineração importável; 12 faltam; backend sem webhooks |
 | 11 Painel administrativo | 🟡 | **Em revisão (branch `feature/fase-11-painel`, empilhada sobre a fase 10), não mesclada.** Novo: detalhe da tarefa com resultado de ferramenta, avisos e download de arquivos (o backend confere SHA-256 antes de servir); seletor de ferramenta com entrada JSON em Agentes; seletor de roteiro do CEO (avisa da etapa de risco); telas **Comunicação** (mensagens e passagem de tarefa) e **Experimentos** (criar, plano de lançamento, pedir aprovação, registrar gasto/venda, encerrar, etapa de escala). Tudo ligado à API real, com estados de carregando, vazio e erro. **Não verificado:** teste manual no navegador desta fase (só testes automatizados e build); celular; telas de Produtos/Financeiro não foram revisadas de novo. |
-| 12 Telegram | ⬜ | |
+| 12 Telegram | 🟡 | **Em revisão (branch `feature/fase-12-telegram`, empilhada sobre a fase 11), não mesclada.** Bot por long polling com avisos e aprovação em duas etapas, lista de autorizados, token fora de logs. **NÃO testado contra o Telegram real** (só servidor falso); sem webhook (exige HTTPS, Fase 18). Ver `docs/TELEGRAM.md`. |
 | 13 Steady Payoff | 🟡 | planilha e página de vendas prontas (entregues antes); ainda não integradas ao sistema |
 | 14 Landing + checklist | ⬜ | checklist de 20 itens não implementado |
 | 15 Marketing e vendas | ⬜ | |
@@ -100,6 +100,11 @@ Legenda: ✅ funciona e testado · 🟡 parcial · ⬜ não iniciado
 - A prova achou 3 ferramentas sem descrição (`financial_summary`, `steady_payoff_xlsx`, `review_xlsx`); corrigido.
 - PostgreSQL 16 real (local, sem Docker), 2026-11-26: `TEST_DATABASE_URL=… python -m pytest -q` → **303 passed, 0 skipped** (os 3 testes exclusivos de PostgreSQL rodaram).
 - **Não verificado:** navegador real (desktop e celular), leitor de tela, `docker compose` (sem daemon na sessão).
+
+## Testes da Fase 12 (2026-11-27)
+- Backend: `python -m pytest -q` → **345 passed, 3 skipped** (300 + 45 de `test_telegram.py`; os 3 skips são os de PostgreSQL sem `TEST_DATABASE_URL`).
+- Mutação: 15 quebras deliberadas (lista de autorizados ignorada, grupo e bot atendidos, aprovar sem código, código não conferido, reutilizável, sem expiração, aviso repetido, aviso marcado antes de enviar, Markdown ligado, erro de rede com URL, log do httpx ligado, auditoria com texto, nota sem limite) → pegas. **3 escaparam na primeira rodada** (erro com URL, log do httpx, auditoria com texto): os testes eram fracos; reforcei e repeti. Arquivo restaurado com `cmp`.
+- **Não verificado:** Telegram real (token, entrega de mensagens, `getUpdates` real), mais de uma instância do bot, reinício com códigos pendentes.
 
 ## Problemas conhecidos
 - Respostas dos agentes com `LLM_PROVIDER=mock` são texto de teste (marcado `[MOCK]`).

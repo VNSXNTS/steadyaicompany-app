@@ -111,7 +111,7 @@ def test_settings_hide_secrets(client):
     assert "test-key" not in str(d)
     expected = "postgresql" if os.getenv("TEST_DATABASE_URL", "").startswith("postgresql") else "sqlite"
     assert d["database_dialect"] == expected
-    assert d["integrations"]["telegram"] == "não implementado"
+    assert d["integrations"]["telegram"].startswith("desligado")
 
 
 def test_health_is_public_and_reports_database(client):

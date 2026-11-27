@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+### Fase 12 — Telegram
+- `app/services/telegram_bot.py`: bot por long polling (`python -m app.services.telegram_bot`), avisos de aprovação pendente (uma vez por aprovação) e comandos `/pendentes /ver /aprovar /confirmar /rejeitar /alterar /id`. Aprovar exige código de uso único (2 min, preso a usuário e aprovação); usa o mesmo `decide_approval` do painel.
+- Falha fechada: sem token o bot não roda; sem `TELEGRAM_ALLOWED_USER_IDS` ignora todos; só conversa privada. Token fora de log, erro e auditoria. `/settings` mostra o estado sem segredos. `docs/TELEGRAM.md`.
+- Testes: +45 em `test_telegram.py`.
 ### Fase 11 — Painel completo
 - Backend: `GET /agent-tools`, `GET /ceo/pipelines` (com flag `risky` por etapa), `GET /tasks/{id}/files/{index}` (caminho só do registro da tarefa; recusa com 409 arquivo ausente, fora de `ARTIFACTS_DIR` ou com SHA-256 diferente), `GET /experiments/launch-checklist`. Três ferramentas ganharam descrição.
 - Painel: resultado de ferramenta e download na tarefa; ferramenta e entrada JSON ao criar tarefa; seletor de roteiro do CEO; telas Comunicação e Experimentos.

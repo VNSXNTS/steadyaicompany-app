@@ -31,6 +31,9 @@ class Settings:
     ai_max_output_tokens: int  # teto de saída por chamada: limita o pior caso de custo
     llm_fallback_provider: str  # "" ou "ollama": usado só quando um provedor pago está bloqueado
     n8n_webhook_secret: str  # segredo SÓ dos webhooks do n8n (mínimo 32 caracteres); vazio = webhooks desligados
+    telegram_bot_token: str  # vazio = Telegram desligado
+    telegram_allowed_user_ids: tuple[int, ...]  # vazio = o bot ignora todo mundo (falha fechada)
+    telegram_api_base: str
     log_level: str
     frontend_dist: str
 
@@ -42,6 +45,14 @@ def _num(name: str, default: str, cast=float):
         return cast(raw)
     except ValueError:
         raise RuntimeError(f"{name} inválida: {raw!r} (esperado número)") from None
+
+
+def _ids(name: str) -> tuple[int, ...]:
+    raw = os.getenv(name, "").strip()
+    try:
+        return tuple(int(x) for x in raw.replace(";", ",").split(",") if x.strip())
+    except ValueError:
+        raise RuntimeError(f"{name} inválida (esperado números separados por vírgula)") from None
 
 
 def get_settings() -> Settings:
@@ -73,6 +84,9 @@ def get_settings() -> Settings:
         ai_max_output_tokens=_num("AI_MAX_OUTPUT_TOKENS", "1024", int),
         llm_fallback_provider=os.getenv("LLM_FALLBACK_PROVIDER", "").strip().lower(),
         n8n_webhook_secret=os.getenv("N8N_WEBHOOK_SECRET", "").strip(),
+        telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
+        telegram_allowed_user_ids=_ids("TELEGRAM_ALLOWED_USER_IDS"),
+        telegram_api_base=os.getenv("TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/"),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         frontend_dist=os.getenv("FRONTEND_DIST", str(default_dist)),
     )
